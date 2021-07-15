@@ -16,7 +16,7 @@ Servo SERVO;
 
 
 float pos = 0;    // variable to store the servo position
-// Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33 
+// Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33
 const int servoPin = 2;
 const int OPTICAL_PIN = 3;
 const int SERVO_PIN = 4;
@@ -25,15 +25,16 @@ int OPTICAL_VALUE;
 int OPTICAL_DURATION;
 int OPTICAL_THRESHOLD = 2000;
 int INDEX_ARRAY[360][3];
-int INDEX=0;
+int INDEX = 0;
 
+float QTY_AVAILABLE = 100;
 float QUANTITY = 0;
 
 const int calVal_eepromAdress = 0;
 unsigned long t = 0;
 
 void setup() {
-  
+
   pinMode(0, INPUT_PULLUP);
   Serial.begin(115200); delay(10);
   Serial.println();
@@ -69,26 +70,26 @@ void setup() {
   // different servos may require different min/max settings
   // for an accurate 0 to 180 sweep
 
-    myservo.attach(servoPin);
-    SERVO.attach(SERVO_PIN);
-    myservo.write(0);
-    SERVO.write(0);
-    delay(3000);
-    
-    for (INDEX = 0; INDEX <= 360; INDEX++) {
-    OPTICAL_DURATION=0;
-    pinMode(OPTICAL_PIN, OUTPUT);  
+  myservo.attach(servoPin);
+  SERVO.attach(SERVO_PIN);
+  myservo.write(0);
+  SERVO.write(0);
+  delay(3000);
+
+  for (INDEX = 0; INDEX <= 360; INDEX++) {
+    OPTICAL_DURATION = 0;
+    pinMode(OPTICAL_PIN, OUTPUT);
     digitalWrite(OPTICAL_PIN, HIGH);
     delay(1);
     pinMode(OPTICAL_PIN, INPUT);
     digitalWrite(OPTICAL_PIN, LOW);
-    while(digitalRead(OPTICAL_PIN)){
+    while (digitalRead(OPTICAL_PIN)) {
       OPTICAL_DURATION++;
     }
     OPTICAL_VALUE = (OPTICAL_DURATION > OPTICAL_THRESHOLD);
 
-   
-    pos = INDEX/2;
+
+    pos = INDEX / 2;
     INDEX_ARRAY[INDEX][0] = pos; // Stores Angle of Servo
     INDEX_ARRAY[INDEX][1] = OPTICAL_VALUE;
     INDEX_ARRAY[INDEX][2] = 0;  // RFID READING TO BE SAVED HERE
@@ -101,118 +102,114 @@ void setup() {
 
     myservo.write(pos);
     delay(100);
-    }
+  }
 }
 
 void loop() {
-  
 
-//  ***********************************READ LOAD CELL*******************************************
-  if(digitalRead(0)==1)
+
+  //  ***********************************READ LOAD CELL*******************************************
+  if (digitalRead(0) == 1)
   {
 
-    
-    if(Serial.read()=='q'){
-      while(QUANTITY == 0 || Serial.read() != 'e'){
-      QUANTITY = Serial.read();
-    }
-    }
 
-    
-  static boolean newDataReady = 0;
-  const int serialPrintInterval = 0; //increase value to slow down serial print activity
+     QUANTITY = 20;
 
-  // check for new data/start next conversion:
-  if (LoadCell.update()) newDataReady = true;
 
-  // get smoothed value from the dataset:
-  if (newDataReady) {
-    if (millis() > t + serialPrintInterval) {
-      float i = LoadCell.getData();
-      Serial.print("Load_cell output val: ");
-      i = ( i > 0 ? i : 0 ) ;
-      Serial.println(i);
-      
-      
-      if(QUANTITY > 0)
-      {
-      if(i < (0.8*QUANTITY)){
-        SERVO.write(30);
-        delay(10);
+
+    static boolean newDataReady = 0;
+    const int serialPrintInterval = 0; //increase value to slow down serial print activity
+
+    // check for new data/start next conversion:
+    if (LoadCell.update()) newDataReady = true;
+
+    // get smoothed value from the dataset:
+    if (newDataReady) {
+      if (millis() > t + serialPrintInterval) {
+        float i = LoadCell.getData();
+        Serial.print("Load_cell output val: ");
+        i = ( i > 0 ? i : 0 ) ;
+        Serial.println(i);
+
+        if(QTY_AVAILABLE > QUANTITY)
+        {
+          if (i < (0.8 * QUANTITY)) {
+            SERVO.write(30);
+            delay(10);
+          }
+          else if (i >= (0.8 * QUANTITY)) {
+            SERVO.write(30);
+            delay(2000);
+            SERVO.write(0);
+            delay(2000);
+          }
+          else if (i >= QUANTITY) {
+            QUANTITY = 0;
+            Serial.println("Dispense Completed!");
+          }
         }
-      else if(i >= (0.8*QUANTITY)){
-        SERVO.write(30);
-        delay(2000);
-        SERVO.write(0);
-        delay(2000);
-        }
-       else if(i >= QUANTITY){
-        QUANTITY = 0;
-        Serial.println("Dispense Completed!");
-        }
+
+        newDataReady = 0;
+        t = millis();
       }
-        
-      newDataReady = 0;
-      t = millis();
     }
+
+    // receive command from serial terminal, send 't' to initiate tare operation:
+    if (Serial.available() > 0) {
+      char inByte = Serial.read();
+      if (inByte == 't') LoadCell.tareNoDelay();
+    }
+
+    // check if last tare operation is complete:
+    if (LoadCell.getTareStatus() == true) {
+      Serial.println("Tare complete");
+    }
+
   }
 
-  // receive command from serial terminal, send 't' to initiate tare operation:
-  if (Serial.available() > 0) {
-    char inByte = Serial.read();
-    if (inByte == 't') LoadCell.tareNoDelay();
-  }
+  //*************************************LOAD CELL CALIBRATION********************************************
 
-  // check if last tare operation is complete:
-  if (LoadCell.getTareStatus() == true) {
-    Serial.println("Tare complete");
-  }
-  
-  }
-
-//*************************************LOAD CELL CALIBRATION********************************************
-
-  else if(digitalRead(0)==0)
+  else if (digitalRead(0) == 0)
   {
     Serial.println("");
     Serial.println("Load cell Setup Mode");
     delay(2000);
 
-     while (!LoadCell.update());
-  calibrate(); //start calibration procedure
-  
-  static boolean newDataReady = 0;
-  const int serialPrintInterval = 0; //increase value to slow down serial print activity
+    while (!LoadCell.update());
+    calibrate(); //start calibration procedure
 
-  // check for new data/start next conversion:
-  if (LoadCell.update()) newDataReady = true;
+    static boolean newDataReady = 0;
+    const int serialPrintInterval = 0; //increase value to slow down serial print activity
 
-  // get smoothed value from the dataset:
-  if (newDataReady) {
-    if (millis() > t + serialPrintInterval) {
-      float i = LoadCell.getData();
-      Serial.print("Load_cell output val: ");
-      Serial.println(i);
-      newDataReady = 0;
-      t = millis();
+    // check for new data/start next conversion:
+    if (LoadCell.update()) newDataReady = true;
+
+    // get smoothed value from the dataset:
+    if (newDataReady) {
+      if (millis() > t + serialPrintInterval) {
+        float i = LoadCell.getData();
+        Serial.print("Load_cell output val: ");
+        Serial.println(i);
+        newDataReady = 0;
+        t = millis();
+      }
+    }
+
+    // receive command from serial terminal
+    if (Serial.available() > 0) {
+      char inByte = Serial.read();
+      if (inByte == 't') LoadCell.tareNoDelay(); //tare
+      else if (inByte == 'r') calibrate(); //calibrate
+      else if (inByte == 'c') changeSavedCalFactor(); //edit calibration value manually
+    }
+
+    // check if last tare operation is complete
+    if (LoadCell.getTareStatus() == true) {
+      Serial.println("Tare complete");
     }
   }
 
-  // receive command from serial terminal
-  if (Serial.available() > 0) {
-    char inByte = Serial.read();
-    if (inByte == 't') LoadCell.tareNoDelay(); //tare
-    else if (inByte == 'r') calibrate(); //calibrate
-    else if (inByte == 'c') changeSavedCalFactor(); //edit calibration value manually
-  }
-
-  // check if last tare operation is complete
-  if (LoadCell.getTareStatus() == true) {
-    Serial.println("Tare complete");
-  }
-    }
-
- //*******************************END LOAD CELL CALIBRATION******************************************************
+  //*******************************END LOAD CELL CALIBRATION******************************************************
 
 }
 
