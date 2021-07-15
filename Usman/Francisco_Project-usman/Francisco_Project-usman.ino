@@ -7,283 +7,32 @@
 //pins:
 const int HX711_dout = 26; //mcu > HX711 dout pin
 const int HX711_sck = 25; //mcu > HX711 sck pin
-const int SERVO_TRAY_PIN = 2;
+
+
+//HX711 constructor:
+HX711_ADC LoadCell(HX711_dout, HX711_sck);
+Servo myservo;
+Servo SERVO;
+
+
+float pos = 0;    // variable to store the servo position
+// Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33 
+const int servoPin = 2;
 const int OPTICAL_PIN = 3;
-int INDEX_ARRAY[360][3];
+const int SERVO_PIN = 4;
 
 int OPTICAL_VALUE;
 int OPTICAL_DURATION;
 int OPTICAL_THRESHOLD = 2000;
-//HX711 constructor:
-HX711_ADC LoadCell(HX711_dout, HX711_sck);
-Servo myservo;
+int INDEX_ARRAY[360][3];
+int INDEX=0;
 
-int pos = 0;    // variable to store the servo position
-// Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33 
-int servoPin = 2;
+float QUANTITY = 0;
 
 const int calVal_eepromAdress = 0;
 unsigned long t = 0;
 
 void setup() {
-  Serial.begin(9600);
-  //  ***********************************READ LOAD CELL*******************************************
-  if(digitalRead(0)==1)
-  {
-  
-  static boolean newDataReady = 0;
-  const int serialPrintInterval = 0; //increase value to slow down serial print activity
-
-  // check for new data/start next conversion:
-  if (LoadCell.update()) newDataReady = true;
-
-  // get smoothed value from the dataset:
-  if (newDataReady) {
-    if (millis() > t + serialPrintInterval) {
-      float i = LoadCell.getData();
-      Serial.print("Load_cell output val: ");
-      i = ( i > 0 ? i : 0 ) ;
-      Serial.println(i);
-      newDataReady = 0;
-      t = millis();
-    }
-  }
-
-  // receive command from serial terminal, send 't' to initiate tare operation:
-  if (Serial.available() > 0) {
-    char inByte = Serial.read();
-    if (inByte == 't') LoadCell.tareNoDelay();
-  }
-
-  // check if last tare operation is complete:
-  if (LoadCell.getTareStatus() == true) {
-    Serial.println("Tare complete");
-  }
-  
-  }
-
-//*************************************LOAD CELL CALIBRATION********************************************
-
-  else if(digitalRead(0)==0)
-  {
-    Serial.println("");
-    Serial.println("Load cell Setup Mode");
-    delay(2000);
-
-     while (!LoadCell.update());
-  calibrate(); //start calibration procedure
-  
-  static boolean newDataReady = 0;
-  const int serialPrintInterval = 0; //increase value to slow down serial print activity
-
-  // check for new data/start next conversion:
-  if (LoadCell.update()) newDataReady = true;
-
-  // get smoothed value from the dataset:
-  if (newDataReady) {
-    if (millis() > t + serialPrintInterval) {
-      float i = LoadCell.getData();
-      Serial.print("Load_cell output val: ");
-      Serial.println(i);
-      newDataReady = 0;
-      t = millis();
-    }
-  }
-
-  // receive command from serial terminal
-  if (Serial.available() > 0) {
-    char inByte = Serial.read();
-    if (inByte == 't') LoadCell.tareNoDelay(); //tare
-    else if (inByte == 'r') calibrate(); //calibrate
-    else if (inByte == 'c') changeSavedCalFactor(); //edit calibration value manually
-  }
-
-  // check if last tare operation is complete
-  if (LoadCell.getTareStatus() == true) {
-    Serial.println("Tare complete");
-  }
-    }
-
- //*******************************END LOAD CELL CALIBRATION******************************************************
-
-}
-
-void calibrate() {
-  Serial.println("***");
-  Serial.println("Start calibration:");
-  Serial.println("Place the load cell an a level stable surface.");
-  Serial.println("Remove any load applied to the load cell.");
-  Serial.println("Send 't' from serial monitor to set the tare offset.");
-
-  boolean _resume = false;
-  while (_resume == false) {
-    LoadCell.update();
-    if (Serial.available() > 0) {
-      if (Serial.available() > 0) {
-        char inByte = Serial.read();
-        if (inByte == 't') LoadCell.tareNoDelay();
-      }
-    }
-    if (LoadCell.getTareStatus() == true) {
-      Serial.println("Tare complete");
-      _resume = true;
-    }
-  }
-
-  Serial.println("Now, place your known mass on the loadcell.");
-  Serial.println("Then send the weight of this mass (i.e. 100.0) from serial monitor.");
-
-  float known_mass = 0;
-  _resume = false;
-  while (_resume == false) {
-    LoadCell.update();
-    if (Serial.available() > 0) {
-      known_mass = Serial.parseFloat();
-      if (known_mass != 0) {
-        Serial.print("Known mass is: ");
-        Serial.println(known_mass);
-        _resume = true;
-      }
-    }
-  }
-
-  LoadCell.refreshDataSet(); //refresh the dataset to be sure that the known mass is measured correct
-  float newCalibrationValue = LoadCell.getNewCalibration(known_mass); //get the new calibration value
-
-  Serial.print("New calibration value has been set to: ");
-  Serial.print(newCalibrationValue);
-  Serial.println(", use this as calibration value (calFactor) in your project sketch.");
-  Serial.print("Save this value to EEPROM adress ");
-  Serial.print(calVal_eepromAdress);
-  Serial.println("? y/n");
-
-  _resume = false;
-  while (_resume == false) {
-    if (Serial.available() > 0) {
-      char inByte = Serial.read();
-      if (inByte == 'y') {
-#if defined(ESP8266)|| defined(ESP32)
-        EEPROM.begin(512);
-#endif
-        EEPROM.put(calVal_eepromAdress, newCalibrationValue);
-#if defined(ESP8266)|| defined(ESP32)
-        EEPROM.commit();
-#endif
-        EEPROM.get(calVal_eepromAdress, newCalibrationValue);
-        Serial.print("Value ");
-        Serial.print(newCalibrationValue);
-        Serial.print(" saved to EEPROM address: ");
-        Serial.println(calVal_eepromAdress);
-        _resume = true;
-
-      }
-      else if (inByte == 'n') {
-        Serial.println("Value not saved to EEPROM");
-        _resume = true;
-      }
-    }
-  }
-
-  Serial.println("End calibration");
-  Serial.println("***");
-  Serial.println("To re-calibrate, send 'r' from serial monitor.");
-  Serial.println("For manual edit of the calibration value, send 'c' from serial monitor.");
-  Serial.println("***");
-}
-
-void changeSavedCalFactor() {
-  float oldCalibrationValue = LoadCell.getCalFactor();
-  boolean _resume = false;
-  Serial.println("***");
-  Serial.print("Current value is: ");
-  Serial.println(oldCalibrationValue);
-  Serial.println("Now, send the new value from serial monitor, i.e. 696.0");
-  float newCalibrationValue;
-  while (_resume == false) {
-    if (Serial.available() > 0) {
-      newCalibrationValue = Serial.parseFloat();
-      if (newCalibrationValue != 0) {
-        Serial.print("New calibration value is: ");
-        Serial.println(newCalibrationValue);
-        LoadCell.setCalFactor(newCalibrationValue);
-        _resume = true;
-      }
-    }
-  }
-  _resume = false;
-  Serial.print("Save this value to EEPROM adress ");
-  Serial.print(calVal_eepromAdress);
-  Serial.println("? y/n");
-  while (_resume == false) {
-    if (Serial.available() > 0) {
-      char inByte = Serial.read();
-      if (inByte == 'y') {
-#if defined(ESP8266)|| defined(ESP32)
-        EEPROM.begin(512);
-#endif
-        EEPROM.put(calVal_eepromAdress, newCalibrationValue);
-#if defined(ESP8266)|| defined(ESP32)
-        EEPROM.commit();
-#endif
-        EEPROM.get(calVal_eepromAdress, newCalibrationValue);
-        Serial.print("Value ");
-        Serial.print(newCalibrationValue);
-        Serial.print(" saved to EEPROM address: ");
-        Serial.println(calVal_eepromAdress);
-        _resume = true;
-      }
-      else if (inByte == 'n') {
-        Serial.println("Value not saved to EEPROM");
-        _resume = true;
-      }
-    }
-  }
-  Serial.println("End change calibration value");
-  Serial.println("***");
-  myservo.write(0);
-  delay(3000);
-
-  int j;
-  for(j=0; j<=360; j++)
-  {
-    OPTICAL_DURATION=0;
-    pinMode(OPTICAL_PIN, OUTPUT);  
-    digitalWrite(OPTICAL_PIN, HIGH);
-    delay(1);
-    pinMode(OPTICAL_PIN, INPUT);
-    digitalWrite(OPTICAL_PIN, LOW);
-    while(digitalRead(OPTICAL_PIN)){
-      OPTICAL_DURATION++;
-    }
-    OPTICAL_VALUE = (OPTICAL_DURATION > OPTICAL_THRESHOLD);
-
-   
-    INDEX_ARRAY[j][0] = j/2; // Stores Angle of Servo
-    INDEX_ARRAY[j][1] = OPTICAL_VALUE;
-    INDEX_ARRAY[j][2] = 0;  // RFID READING TO BE SAVED HERE
-
-    Serial.print(INDEX_ARRAY[j][0]);
-    Serial.print(INDEX_ARRAY[j][1]);
-    Serial.print(INDEX_ARRAY[j][2]);
-    Serial.println("");
-
-    myservo.write(j/2);
-    //delay(100);
-  }
-  
-  for(int a=0; a<=360; a++)
-  {
-    for(int b=0; b<3; b++)
-    {
-      Serial.print(INDEX_ARRAY[a][b]);
-      Serial.print("   ");
-      
-      }
-      Serial.println("");
-    }  
-}
-
-void loop() {
   
   pinMode(0, INPUT_PULLUP);
   Serial.begin(115200); delay(10);
@@ -315,23 +64,61 @@ void loop() {
   ESP32PWM::allocateTimer(2);
   ESP32PWM::allocateTimer(3);
   myservo.setPeriodHertz(50);    // standard 50 hz servo
-  myservo.attach(servoPin, 600, 2300); // attaches the servo on pin 18 to the servo object
+  myservo.attach(servoPin, 600, 2300); // attaches the servo on pin 2 to the servo object
   // using default min/max of 1000us and 2000us
   // different servos may require different min/max settings
   // for an accurate 0 to 180 sweep
 
-    for (pos = 0; pos <= 180; pos += 30) {
+    myservo.attach(servoPin);
+    SERVO.attach(SERVO_PIN);
+    myservo.write(0);
+    SERVO.write(0);
+    delay(3000);
+    
+    for (INDEX = 0; INDEX <= 360; INDEX++) {
+    OPTICAL_DURATION=0;
+    pinMode(OPTICAL_PIN, OUTPUT);  
+    digitalWrite(OPTICAL_PIN, HIGH);
+    delay(1);
+    pinMode(OPTICAL_PIN, INPUT);
+    digitalWrite(OPTICAL_PIN, LOW);
+    while(digitalRead(OPTICAL_PIN)){
+      OPTICAL_DURATION++;
+    }
+    OPTICAL_VALUE = (OPTICAL_DURATION > OPTICAL_THRESHOLD);
+
+   
+    pos = INDEX/2;
+    INDEX_ARRAY[INDEX][0] = pos; // Stores Angle of Servo
+    INDEX_ARRAY[INDEX][1] = OPTICAL_VALUE;
+    INDEX_ARRAY[INDEX][2] = 0;  // RFID READING TO BE SAVED HERE
+
+    Serial.println(INDEX);
+    Serial.println(INDEX_ARRAY[INDEX][0]);
+    Serial.println(INDEX_ARRAY[INDEX][1]);
+    Serial.println(INDEX_ARRAY[INDEX][2]);
+    Serial.println("");
+
     myservo.write(pos);
-    delay(1000);
-}
+    delay(100);
+    }
 }
 
 void loop() {
   
+
 //  ***********************************READ LOAD CELL*******************************************
   if(digitalRead(0)==1)
   {
-  
+
+    
+    if(Serial.read()=='q'){
+      while(QUANTITY == 0 || Serial.read() != 'e'){
+      QUANTITY = Serial.read();
+    }
+    }
+
+    
   static boolean newDataReady = 0;
   const int serialPrintInterval = 0; //increase value to slow down serial print activity
 
@@ -345,6 +132,26 @@ void loop() {
       Serial.print("Load_cell output val: ");
       i = ( i > 0 ? i : 0 ) ;
       Serial.println(i);
+      
+      
+      if(QUANTITY > 0)
+      {
+      if(i < (0.8*QUANTITY)){
+        SERVO.write(30);
+        delay(10);
+        }
+      else if(i >= (0.8*QUANTITY)){
+        SERVO.write(30);
+        delay(2000);
+        SERVO.write(0);
+        delay(2000);
+        }
+       else if(i >= QUANTITY){
+        QUANTITY = 0;
+        Serial.println("Dispense Completed!");
+        }
+      }
+        
       newDataReady = 0;
       t = millis();
     }
