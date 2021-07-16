@@ -24,7 +24,8 @@ const int SERVO_PIN = 4;
 int OPTICAL_VALUE;
 int OPTICAL_DURATION;
 int OPTICAL_THRESHOLD = 2000;
-int INDEX_ARRAY[360][3];
+int INDEX_ARRAY[360][2];
+int STRING_ARRAY[360];
 int INDEX = 0;
 
 float QTY_AVAILABLE = 100;
@@ -92,12 +93,12 @@ void setup() {
     pos = INDEX / 2;
     INDEX_ARRAY[INDEX][0] = pos; // Stores Angle of Servo
     INDEX_ARRAY[INDEX][1] = OPTICAL_VALUE;
-    INDEX_ARRAY[INDEX][2] = 0;  // RFID READING TO BE SAVED HERE
+    STRING_ARRAY[INDEX] = 0;  // RFID READING TO BE SAVED HERE
 
     Serial.println(INDEX);
     Serial.println(INDEX_ARRAY[INDEX][0]);
     Serial.println(INDEX_ARRAY[INDEX][1]);
-    Serial.println(INDEX_ARRAY[INDEX][2]);
+    Serial.println(STRING_ARRAY[INDEX]);
     Serial.println("");
 
     myservo.write(pos);
@@ -137,7 +138,7 @@ void loop() {
             SERVO.write(30);
             delay(10);
           }
-          else if (i >= (0.8 * QUANTITY)) {
+          else if (i >= (0.8*QUANTITY)  && (i < QUANTITY)) {
             SERVO.write(30);
             delay(2000);
             SERVO.write(0);
