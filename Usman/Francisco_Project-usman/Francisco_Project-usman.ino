@@ -145,6 +145,8 @@ void loop() {
             delay(2000);
           }
           else if (i >= QUANTITY) {
+            
+            QTY_AVAILABLE = QTY_AVAILABLE - QUANTITY;
             QUANTITY = 0;
             Serial.println("Dispense Completed!");
           }
