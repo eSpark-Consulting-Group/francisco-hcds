@@ -522,13 +522,15 @@ int getCartridgeColor()
   Serial.println("UID");
   temp_CID = "";
   for (byte i = 0; i < mfrc522.uid.size; i++) {
-    if (mfrc522.uid.uidByte[(mfrc522.uid.size - 1) - i] < 0x10)
+    if (mfrc522.uid.uidByte[(mfrc522.uid.size - 1) - i] < 0x10){
       //Serial.print(F("0"));
       temp_CID += "0";
-    else
+    }
+    else{
       //Serial.print(F(""));
       temp_CID += "";
     //Serial.print(mfrc522.uid.uidByte[(mfrc522.uid.size - 1) - i], HEX);
+    }
     temp_CID += String(mfrc522.uid.uidByte[(mfrc522.uid.size - 1) - i], HEX);
   }
 

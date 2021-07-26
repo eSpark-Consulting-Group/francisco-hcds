@@ -11,21 +11,22 @@ const int HX711_dout = 26; //mcu > HX711 dout pin
 const int HX711_sck = 25; //mcu > HX711 sck pin
 
 #define SS_PIN 21
-#define RST_PIN 22 
+#define RST_PIN 22
 
- 
+#define SS1_PIN 18
+
 MFRC522 rfid(SS_PIN, RST_PIN); // Instance of the class
+MFRC522 rfid1(SS1_PIN, RST_PIN); // RFID Object for Tray
 
-MFRC522::MIFARE_Key key; 
+MFRC522::MIFARE_Key key;
 
-// Init array that will store new NUID 
-byte nuidPICC[4];
 String temp_CID = "";
 String threeBytes = "";
 
 String CIDS[11] = {"806", "123", "123", "123", "123", "123", "123", "123", "123", "123", "19b"};
 int colors[11] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}; // 11 Color types
 String color_names[11] = {"1N", "5N", "8N", "CLEAR", "5V", "40V", "PHB", "BLUE", "RED", "GOLD", "LIGHTENER"};
+int degreesOfColors[11] = {};
 
 
 //HX711 constructor:
@@ -55,8 +56,9 @@ unsigned long t = 0;
 
 void setup() {
 
-SPI.begin(); // Init SPI bus
+  SPI.begin(); // Init SPI bus
   rfid.PCD_Init(); // Init MFRC522 
+  rfid1.PCD_Init(); // Init Tray RFID
 
   for (byte i = 0; i < 6; i++) {
     key.keyByte[i] = 0xFF;
@@ -65,34 +67,6 @@ SPI.begin(); // Init SPI bus
   Serial.println(F("This code scan the MIFARE Classsic NUID."));
   Serial.print(F("Using the following key:"));
 
-  for (int i = 0; i < 3; i++)
-  {
-    rfid.PICC_IsNewCardPresent();
-
-    // Select one of the cards
-    rfid.PICC_ReadCardSerial();
-
-    //rfid.PICC_DumpToSerial(&(rfid.uid));
-    Serial.println("UID");
-    temp_CID = "";
-    for (byte i = 0; i < rfid.uid.size; i++) {
-      if (rfid.uid.uidByte[(rfid.uid.size - 1) - i] < 0x10)
-        //Serial.print(F("0"));
-        temp_CID += "0";
-      else
-        //Serial.print(F(""));
-        temp_CID += "";
-      //Serial.print(rfid.uid.uidByte[(rfid.uid.size - 1) - i], HEX);
-      temp_CID += String(rfid.uid.uidByte[(rfid.uid.size - 1) - i], HEX);
-    }
-
-    Serial.println(temp_CID);
-
-    threeBytes = temp_CID.substring(0, 2); // Take three bytes from UID string to identify color
-    Serial.print("Color ID is : ");
-    Serial.println(threeBytes);
-  }
-}
   pinMode(0, INPUT_PULLUP);
   Serial.begin(115200); delay(10);
   Serial.println();
@@ -118,7 +92,7 @@ SPI.begin(); // Init SPI bus
     Serial.println("Startup is complete");
   }
   // Allow allocation of all timers
-  ESP32PWM::allocateTimer(0);
+  //ESP32PWM::allocateTimer(0);
   //ESP32PWM::allocateTimer(1);
   //ESP32PWM::allocateTimer(2);
   //ESP32PWM::allocateTimer(3);
@@ -132,35 +106,10 @@ SPI.begin(); // Init SPI bus
   SERVO.attach(SERVO_PIN);
   myservo.write(0);
   SERVO.write(0);
- // delay(3000);
-
-  for (INDEX = 0; INDEX <= 360; INDEX++) {
-    OPTICAL_DURATION = 0;
-    pinMode(OPTICAL_PIN, OUTPUT);
-    digitalWrite(OPTICAL_PIN, HIGH);
-    delay(1);
-    pinMode(OPTICAL_PIN, INPUT);
-    digitalWrite(OPTICAL_PIN, LOW);
-    while (digitalRead(OPTICAL_PIN)) {
-      OPTICAL_DURATION++;
-    }
-    OPTICAL_VALUE = (OPTICAL_DURATION > OPTICAL_THRESHOLD);
-
-
-    pos = INDEX / 2;
-    INDEX_ARRAY[INDEX][0] = pos; // Stores Angle of Servo
-    INDEX_ARRAY[INDEX][1] = OPTICAL_VALUE;
-    STRING_ARRAY[INDEX] = 0;  // RFID READING TO BE SAVED HERE
-
-    Serial.println(INDEX);
-    Serial.println(INDEX_ARRAY[INDEX][0]);
-    Serial.println(INDEX_ARRAY[INDEX][1]);
-    Serial.println(STRING_ARRAY[INDEX]);
-    Serial.println("");
-
-    myservo.write(pos);
-    delay(100);
-  }
+  delay(3000);
+ 
+  readRFIDs();
+  
 }
 
 void loop() {
@@ -170,10 +119,7 @@ void loop() {
   if (digitalRead(0) == 1)
   {
 
-
      QUANTITY = 20;
-
-
 
     static boolean newDataReady = 0;
     const int serialPrintInterval = 0; //increase value to slow down serial print activity
@@ -189,8 +135,9 @@ void loop() {
         i = ( i > 0 ? i : 0 ) ;
         Serial.println(i);
 
-        if(QTY_AVAILABLE > QUANTITY)
+        if((QTY_AVAILABLE > QUANTITY) && (rfid1.PICC_IsNewCardPresent()))
         {
+          Serial.println("Card Detected!");
           if (i < (0.8 * QUANTITY)) {
             SERVO.write(30);
             delay(10);
@@ -318,6 +265,7 @@ for(int i = 0; i < 11; i++)
 }
 
 
+
 /**
  * Helper routine to dump a byte array as hex values to Serial. 
  */
@@ -328,58 +276,11 @@ void printHex(byte *buffer, byte bufferSize) {
   }
 }
 
-int getCartridgeColor()
-{
-  String threeBytes = "";
-  String colorName = "";
-  int color = 0;
 
-  if ( ! rfid.PICC_IsNewCardPresent()) {
-    return 0;
-  }
-
-  // Select one of the cards
-  if ( ! rfid.PICC_ReadCardSerial()) {
-    return 0;
-  }
-
-  //rfid.PICC_DumpToSerial(&(rfid.uid));
-  Serial.println("UID");
-  temp_CID = "";
-  for (byte i = 0; i < rfid.uid.size; i++) {
-    if (rfid.uid.uidByte[(rfid.uid.size - 1) - i] < 0x10)
-      //Serial.print(F("0"));
-      temp_CID += "0";
-    else
-      //Serial.print(F(""));
-      temp_CID += "";
-    //Serial.print(rfid.uid.uidByte[(rfid.uid.size - 1) - i], HEX);
-    temp_CID += String(rfid.uid.uidByte[(rfid.uid.size - 1) - i], HEX);
-  }
-
-  threeBytes = temp_CID.substring(0, 3);
-
-  // Search Color
-  for (int i = 0; i < 11; i++)
-  {
-    if (threeBytes == CIDS[i])
-    {
-      color = colors[i];
-      colorName = color_names[i];
-    }
-  }
-
-  Serial.println(temp_CID);
-  Serial.println(threeBytes);
-  Serial.println(color);
-  Serial.println();
-  return color;
 
   
 
   //*******************************END LOAD CELL CALIBRATION******************************************************
-
-}
 
 void calibrate() {
   Serial.println("***");
@@ -513,4 +414,88 @@ void changeSavedCalFactor() {
   }
   Serial.println("End change calibration value");
   Serial.println("***");
+}
+
+
+int getCartridgeColor() //*************************************
+{
+  String threeBytes = "";
+  String colorName = "";
+  int color = 0;
+
+  if ( ! rfid.PICC_IsNewCardPresent()) {
+    return 0;
+  }
+
+  // Select one of the cards
+  if ( ! rfid.PICC_ReadCardSerial()) {
+    return 0;
+  }
+
+  //rfid.PICC_DumpToSerial(&(rfid.uid));
+  Serial.println("UID");
+  temp_CID = "";
+  for (byte i = 0; i < rfid.uid.size; i++) {
+    if (rfid.uid.uidByte[(rfid.uid.size - 1) - i] < 0x10)
+      //Serial.print(F("0"));
+      temp_CID += "0";
+    else
+      //Serial.print(F(""));
+      temp_CID += "";
+    //Serial.print(rfid.uid.uidByte[(rfid.uid.size - 1) - i], HEX);
+    temp_CID += String(rfid.uid.uidByte[(rfid.uid.size - 1) - i], HEX);
+  }
+
+  threeBytes = temp_CID.substring(0, 3);
+
+  // Search Color
+  for (int i = 0; i < 11; i++)
+  {
+    if (threeBytes == CIDS[i])
+    {
+      color = colors[i];
+      colorName = color_names[i];
+    }
+  }
+
+  Serial.println(temp_CID);
+  Serial.println(threeBytes);
+  Serial.println(color);
+  Serial.println();
+  return color;
+}
+
+
+
+void readRFIDs() //**************************************
+{
+  for (INDEX = 0; INDEX < 720; INDEX++) {
+    OPTICAL_DURATION = 0;
+    pinMode(OPTICAL_PIN, OUTPUT);
+    digitalWrite(OPTICAL_PIN, HIGH);
+    delay(1);
+    pinMode(OPTICAL_PIN, INPUT);
+    digitalWrite(OPTICAL_PIN, LOW);
+    while (digitalRead(OPTICAL_PIN)) {
+      OPTICAL_DURATION++;
+    }
+    OPTICAL_VALUE = (OPTICAL_DURATION > OPTICAL_THRESHOLD);
+
+    pos = INDEX / 2;
+    myservo.write(pos);
+    delay(2000);
+
+    Serial.println(INDEX);
+    Serial.println(pos);
+    Serial.println(OPTICAL_VALUE);
+    Serial.println("");
+  }
+  
+  for (int i = 0; i < 11; i++)
+  {
+    if (getCartridgeColor() ==  colors[i])
+    {
+      degreesOfColors[i] = pos;
+    }
+  }
 }

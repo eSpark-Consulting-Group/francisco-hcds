@@ -2,14 +2,14 @@
 #include <MFRC522.h>
 
 #define SS_PIN 21
-#define RST_PIN 22 
+#define RST_PIN 22
 
- 
+
 MFRC522 rfid(SS_PIN, RST_PIN); // Instance of the class
 
-MFRC522::MIFARE_Key key; 
+MFRC522::MIFARE_Key key;
 
-// Init array that will store new NUID 
+// Init array that will store new NUID
 byte nuidPICC[4];
 String temp_CID = "";
 String threeBytes = "";
@@ -18,10 +18,12 @@ String CIDS[11] = {"806", "123", "123", "123", "123", "123", "123", "123", "123"
 int colors[11] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}; // 11 Color types
 String color_names[11] = {"1N", "5N", "8N", "CLEAR", "5V", "40V", "PHB", "BLUE", "RED", "GOLD", "LIGHTENER"};
 
-void setup() { 
+int getCartridgeColor();
+
+void setup() {
   Serial.begin(9600);
   SPI.begin(); // Init SPI bus
-  rfid.PCD_Init(); // Init MFRC522 
+  rfid.PCD_Init(); // Init MFRC522
 
   for (byte i = 0; i < 6; i++) {
     key.keyByte[i] = 0xFF;
@@ -29,100 +31,62 @@ void setup() {
 
   Serial.println(F("This code scan the MIFARE Classsic NUID."));
   Serial.print(F("Using the following key:"));
-  printHex(key.keyByte, MFRC522::MF_KEY_SIZE);
 
-  for (int i = 0; i < 3; i++)
-  {
-    rfid.PICC_IsNewCardPresent();
+  getCartridgeColor();
 
-    // Select one of the cards
-    rfid.PICC_ReadCardSerial();
 
-    //rfid.PICC_DumpToSerial(&(rfid.uid));
-    Serial.println("UID");
-    temp_CID = "";
-    for (byte i = 0; i < rfid.uid.size; i++) {
-      if (rfid.uid.uidByte[(rfid.uid.size - 1) - i] < 0x10)
-        //Serial.print(F("0"));
-        temp_CID += "0";
-      else
-        //Serial.print(F(""));
-        temp_CID += "";
-      //Serial.print(rfid.uid.uidByte[(rfid.uid.size - 1) - i], HEX);
-      temp_CID += String(rfid.uid.uidByte[(rfid.uid.size - 1) - i], HEX);
-    }
-
-    Serial.println(temp_CID);
-
-    threeBytes = temp_CID.substring(0, 2); // Take three bytes from UID string to identify color
-    Serial.print("Color ID is : ");
-    Serial.println(threeBytes);
-  }
 }
- 
+
 void loop() {
 
-  for(int i = 0; i < 11; i++)
-  {
-    if(threeBytes == CIDS[i])
-    {
-         // Associate color with ID
-      }
+
+
+
+
+
+}
+
+
+
+
+
+void readRFIDs()
+{
+  for (INDEX = 0; INDEX < 720; INDEX++) {
+    OPTICAL_DURATION = 0;
+    pinMode(OPTICAL_PIN, OUTPUT);
+    digitalWrite(OPTICAL_PIN, HIGH);
+    delay(1);
+    pinMode(OPTICAL_PIN, INPUT);
+    digitalWrite(OPTICAL_PIN, LOW);
+    while (digitalRead(OPTICAL_PIN)) {
+      OPTICAL_DURATION++;
     }
+    OPTICAL_VALUE = (OPTICAL_DURATION > OPTICAL_THRESHOLD);
 
-  // Reset the loop if no new card present on the sensor/reader. This saves the entire process when idle.
-  if ( ! rfid.PICC_IsNewCardPresent())
-    return;
+    pos = INDEX / 2;
+    myservo.write(pos);
+    delay(2000);
 
-  // Verify if the NUID has been readed
-  if ( ! rfid.PICC_ReadCardSerial())
-    return;
-
-  if (rfid.uid.uidByte[0] == 0x79 &&  // For color 1
-    rfid.uid.uidByte[1] == 0x3F && 
-    rfid.uid.uidByte[2] == 0x62 && 
-    rfid.uid.uidByte[3] == 0xA3 ) {
-
-    Serial.print("Color : ");  
-    Serial.println("RED");
-   
-    Serial.println("The NUID tag is : ");
-    printHex(rfid.uid.uidByte, rfid.uid.size);
-    Serial.println();
+    Serial.println(INDEX);
+    Serial.println(pos);
+    Serial.println(OPTICAL_VALUE);
+    Serial.println("");
   }
-
-  else if (rfid.uid.uidByte[0] == 0x69 &&   // For color 2
-    rfid.uid.uidByte[1] == 0x43 && 
-    rfid.uid.uidByte[2] == 0x15 && 
-    rfid.uid.uidByte[3] == 0xC9 ) {
-
-    Serial.print("Color : ");  
-    Serial.println("GREEN");
-   
-    Serial.println("The NUID tag is : ");
-    printHex(rfid.uid.uidByte, rfid.uid.size);
-    Serial.println();
-  }
-
-
-  rfid.PICC_HaltA();
-  rfid.PCD_StopCrypto1();
-
-
-}
-
-
-/**
- * Helper routine to dump a byte array as hex values to Serial. 
- */
-void printHex(byte *buffer, byte bufferSize) {
-  for (byte i = 0; i < bufferSize; i++) {
-    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
-    Serial.print(buffer[i], HEX);
+  
+  for (int i = 0; i < 11; i++)
+  {
+    if (getCartridgeColor() ==  colors[i])
+    {
+      degreesOfColors[i] = pos;
+    }
   }
 }
 
-int getCartridgeColor()
+
+
+
+int getCartridgeColor() //********************************
 {
   String threeBytes = "";
   String colorName = "";
