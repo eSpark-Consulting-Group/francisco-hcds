@@ -7,13 +7,13 @@
 #endif
 
 //pins:
-const int HX711_dout = 26; //mcu > HX711 dout pin
-const int HX711_sck = 25; //mcu > HX711 sck pin
+const int HX711_dout = 32; //mcu > HX711 dout pin
+const int HX711_sck = 33; //mcu > HX711 sck pin
 
-#define SS_PIN 21
+#define SS_PIN 13
 #define RST_PIN 22
 
-#define SS1_PIN 18
+#define SS1_PIN 15
 
 MFRC522 rfid(SS_PIN, RST_PIN); // Instance of the class
 MFRC522 rfid1(SS1_PIN, RST_PIN); // RFID Object for Tray

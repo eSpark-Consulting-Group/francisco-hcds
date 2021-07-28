@@ -18,7 +18,7 @@ unsigned long t = 0;
 void setup() {
   
   pinMode(0, INPUT_PULLUP);
-  Serial.begin(115200); delay(10);
+  Serial.begin(57600); delay(10);
   Serial.println();
   Serial.println("Starting...");
 
