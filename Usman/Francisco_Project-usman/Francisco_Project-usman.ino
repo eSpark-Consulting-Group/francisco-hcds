@@ -18,7 +18,7 @@ bool deviceConnected = false;
 bool oldDeviceConnected = false;
 uint8_t txValue = 0;
 
-float QTY_AVAILABLE = 100;
+float QTY_AVAILABLE = 100; 
 float QUANTITY = 20;
 
 // See the following for generating UUIDs:
