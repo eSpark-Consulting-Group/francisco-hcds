@@ -16,7 +16,6 @@ BLEServer *pServer = NULL;
 BLECharacteristic * pTxCharacteristic;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
-uint8_t txValue = 0;
 
 float QTY_AVAILABLE = 100; 
 float QUANTITY = 20;
@@ -58,7 +57,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
           s += rxValue[i];
         }
         QUANTITY = s.toFloat();
-        Serial.println();
+        /*Serial.println();
         Serial.println("**************");
         Serial.println();
         Serial.print("QUANTITY = ");
@@ -66,7 +65,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         Serial.print("100 - QUANTITY = ");
         Serial.println(100-QUANTITY);
         Serial.println();
-        Serial.println("*********");
+        Serial.println("*********");*/
       }
     }
 };
@@ -161,9 +160,13 @@ void setup() {
 }
 
 void loop() {
-  
+
+   Serial.println("Start");
+
+  String str = String(i);
+
   if (deviceConnected) {
-        pTxCharacteristic->setValue(&txValue, 1);
+        pTxCharacteristic->setValue(str.c_str());
         pTxCharacteristic->notify();
     delay(10); // bluetooth stack will go into congestion, if too many packets are sent
   }
@@ -212,7 +215,7 @@ void loop() {
 
 
 
-  if (QUANTITY > 0 && QTY_AVAILABLE > QUANTITY && rfid.PICC_IsNewCardPresent())
+  if (QUANTITY > 0 && QTY_AVAILABLE >= QUANTITY && rfid.PICC_IsNewCardPresent())
         {
           Serial.println("Dispensing");
           
@@ -229,23 +232,25 @@ void loop() {
             delay(500);
           }
           else if (i >= QUANTITY) {
+            SERVO_2.write(0);
             Serial.println(" 100%");
             QTY_AVAILABLE = QTY_AVAILABLE - QUANTITY;
             QUANTITY = 0;
             Serial.println("Dispense Completed!");
             Serial.print("Quantity Available = ");
             Serial.println(QTY_AVAILABLE);
-            delay(100000);
+            delay(5000);
           }
-          else{}
-          
+          else  {}
+          //Serial.println("if condition");
         }
+
         
-        else if(QUANTITY <= 0 || QTY_AVAILABLE < QUANTITY || !rfid.PICC_IsNewCardPresent())
-        {
+      /*  else{ 
           SERVO_2.write(0);
+          Serial.println("else condition");
         }
+        delay(5000);*/
         
-        
-    txValue = i;
+
 }
