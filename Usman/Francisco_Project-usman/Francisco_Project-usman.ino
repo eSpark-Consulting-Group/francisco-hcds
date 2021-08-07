@@ -17,6 +17,26 @@ BLECharacteristic * pTxCharacteristic;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 
+String temp_CID = "";
+String threeBytes = "";
+
+String CIDS[11] = {"806", "733", "723", "123", "123", "123", "123", "793", "123", "123", "19b"};
+int colors[11] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}; // 11 Color types
+String color_names[11] = {"1N", "5N", "8N", "CLEAR", "5V", "40V", "PHB", "BLUE", "RED", "GOLD", "LIGHTENER"};
+int degreesOfColors[11] = {};
+
+float pos = 0;    // variable to store the servo position
+// Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33
+const int OPTICAL_PIN = 3;
+const int SERVO_PIN = 4;
+
+int OPTICAL_VALUE;
+int OPTICAL_DURATION;
+int OPTICAL_THRESHOLD = 2000;
+int INDEX_ARRAY[360][2];
+int STRING_ARRAY[360];
+int INDEX = 0;
+
 float QTY_AVAILABLE = 100; 
 float QUANTITY = 20;
 
@@ -41,6 +61,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
 class MyCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       std::string rxValue = pCharacteristic->getValue();
+      
       
       /*Serial.println("");
       Serial.println("Rx Test : ");
@@ -76,6 +97,7 @@ const int HX711_sck = 33; //mcu > HX711 sck pin
 
 const int SERVO_2_PIN = 5;
 
+Servo SERVO;
 Servo SERVO_2;
 
 //HX711 constructor:
@@ -88,6 +110,8 @@ const int calVal_eepromAdress = 0;
 unsigned long t = 0;
 
 float i=0;
+
+
 
 void setup() {
   Serial.begin(57600); delay(10);
@@ -155,9 +179,16 @@ void setup() {
     Serial.println("Startup is complete");
   }
 
+  SERVO.attach(SERVO_PIN, 600, 2300);
+  SERVO.write(0);
   SERVO_2.attach(SERVO_2_PIN, 600, 2300);
   SERVO_2.write(0);
+
+  getCartridgeColor();
+  Serial.println("End Setup");
 }
+
+
 
 void loop() {
 
@@ -253,4 +284,98 @@ void loop() {
         delay(5000);*/
         
 
+}
+
+
+int getCartridgeColor() //*************************************
+{
+  Serial.println("In getCartridgeColor Function");
+  String threeBytes = "";
+  String colorName = "";
+  int color = 0;
+
+  if ( ! rfid.PICC_IsNewCardPresent()) {
+    return 0;
+  }
+
+  // Select one of the cards
+  if ( ! rfid.PICC_ReadCardSerial()) {
+    return 0;
+  }
+  //rfid.PICC_DumpToSerial(&(rfid.uid));
+  Serial.println("UID");
+  temp_CID = "";
+  for (byte i = 0; i < rfid.uid.size; i++) {
+    if (rfid.uid.uidByte[i] < 0x10)
+      //Serial.print(F("0"));
+      temp_CID += "0";
+    else
+      //Serial.print(F(""));
+      temp_CID += "";
+    //Serial.print(rfid.uid.uidByte[(rfid.uid.size - 1) - i], HEX);
+    temp_CID += String(rfid.uid.uidByte[i], HEX);
+  }
+
+  threeBytes = temp_CID.substring(0, 3);
+
+  // Search Color
+  for (int i = 0; i < 11; i++)
+  {
+    if (threeBytes == CIDS[i])
+    {
+      color = colors[i];
+      colorName = color_names[i];
+    }
+  }
+
+  Serial.println(temp_CID);
+  Serial.println(threeBytes);
+  Serial.println(color);
+  Serial.println(colorName);
+  return color;
+}
+
+
+
+void readRFIDs() //**************************************
+{
+
+  Serial.println("In readRFIDs Function");
+  
+  for (INDEX = 0; INDEX < 720; INDEX++) {
+    
+    pos = INDEX / 2;
+    SERVO.write(pos);
+    delay(2000);
+    
+    OPTICAL_DURATION = 0;
+    pinMode(OPTICAL_PIN, OUTPUT);
+    digitalWrite(OPTICAL_PIN, HIGH);
+    delay(1);
+    pinMode(OPTICAL_PIN, INPUT);
+    digitalWrite(OPTICAL_PIN, LOW);
+    while (digitalRead(OPTICAL_PIN)) {
+      OPTICAL_DURATION++;
+    }
+    OPTICAL_VALUE = (OPTICAL_DURATION > OPTICAL_THRESHOLD);
+
+    Serial.print("INDEX = ");
+    Serial.println(INDEX);
+    Serial.print("Servo position = ");
+    Serial.println(pos);
+    Serial.println("OPTICAL_VALUE = ");
+    Serial.println(OPTICAL_VALUE);
+    Serial.println("");
+  
+  if(rfid.PICC_IsNewCardPresent() && OPTICAL_VALUE)
+  {
+    for (int i = 0; i < 11; i++)
+    {
+      if (getCartridgeColor() ==  colors[i])
+      {
+      degreesOfColors[i] = pos;
+      }
+    }
+  }
+}
 }
