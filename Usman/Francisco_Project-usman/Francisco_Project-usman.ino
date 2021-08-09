@@ -1,5 +1,6 @@
 #include <HX711_ADC.h>
 #include <MFRC522.h>
+#include <CSV_Parser.h>
 #include <ESP32Servo.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
@@ -78,6 +79,19 @@ class MyCallbacks: public BLECharacteristicCallbacks {
           s += rxValue[i];
         }
         QUANTITY = s.toFloat();
+
+        char * csv_str = "my_strings,my_numbers\n"
+                   "world,10\n";
+
+        CSV_Parser cp(csv_str, /*format*/ "sL");
+
+        Serial.println("Accessing values by column name:");
+        char **strings = (char**)cp["my_strings"];
+        int32_t *numbers = (int32_t*)cp["my_numbers"];
+
+        Serial.println(strings[0]);
+        Serial.println(numbers[0], DEC);
+                   
         /*Serial.println();
         Serial.println("**************");
         Serial.println();
