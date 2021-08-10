@@ -1,6 +1,5 @@
 #include <HX711_ADC.h>
 #include <MFRC522.h>
-#include <CSV_Parser.h>
 #include <ESP32Servo.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
@@ -40,6 +39,8 @@ int INDEX = 0;
 
 float QTY_AVAILABLE = 100; 
 float QUANTITY = 20;
+String COLOR;
+String QTY;
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
@@ -78,19 +79,23 @@ class MyCallbacks: public BLECharacteristicCallbacks {
           Serial.print(rxValue[i]);
           s += rxValue[i];
         }
-        QUANTITY = s.toFloat();
+        byte x = s.indexOf(',');
+        COLOR = s.substring(0,x);
+        QTY = s.substring(x+1,sizeof(s)-1);
+        QUANTITY = QTY.toFloat();
 
-        char * csv_str = "my_strings,my_numbers\n"
-                   "world,10\n";
+        Serial.println("");
+        Serial.println("");
+        Serial.print("COLOR : ");
+        Serial.println(COLOR);
+        Serial.print("QUANTITY : ");
+        Serial.println(QUANTITY);
+        Serial.println(100-QUANTITY);
+        Serial.println("");
+        Serial.println("");
 
-        CSV_Parser cp(csv_str, /*format*/ "sL");
+        
 
-        Serial.println("Accessing values by column name:");
-        char **strings = (char**)cp["my_strings"];
-        int32_t *numbers = (int32_t*)cp["my_numbers"];
-
-        Serial.println(strings[0]);
-        Serial.println(numbers[0], DEC);
                    
         /*Serial.println();
         Serial.println("**************");
@@ -205,6 +210,11 @@ void setup() {
 
 
 void loop() {
+
+  if(COLOR=="Green"){
+    Serial.println("Test Successful");
+    
+    }
 
    Serial.println("Start");
 
