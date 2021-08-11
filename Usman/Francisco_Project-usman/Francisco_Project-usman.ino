@@ -37,7 +37,7 @@ int INDEX_ARRAY[360][2];
 int STRING_ARRAY[360];
 int INDEX = 0;
 
-float QTY_AVAILABLE = 100; 
+float QTY_AVAILABLE[11] = {100,100}; 
 float QUANTITY = 20;
 String COLOR;
 String QTY;
@@ -211,10 +211,9 @@ void setup() {
 
 void loop() {
 
-  if(COLOR=="Green"){
-    Serial.println("Test Successful");
-    
-    }
+  /*if(COLOR=="Green"){
+    Serial.println("Test Successful");    
+    }*/
 
    Serial.println("Start");
 
@@ -268,9 +267,46 @@ void loop() {
     Serial.println("Tare complete");
   }
 
+  for(int i = 1; i<=11; i++)
+  {
+    if(COLOR == color_names[i])
+    {
+      SERVO.write(degreesOfColors[i]);
+      delay(500);
 
-
-  if (QUANTITY > 0 && QTY_AVAILABLE >= QUANTITY && rfid.PICC_IsNewCardPresent())
+      if (QUANTITY > 0 && QTY_AVAILABLE[i] >= QUANTITY && rfid.PICC_IsNewCardPresent())
+        {
+          Serial.println("Dispensing");
+          
+          if (i < (0.8 * QUANTITY)) {
+            Serial.println("< 80%");
+            SERVO_2.write(30);
+            delay(10);
+          }
+          else if (i >= (0.8*QUANTITY)  && (i < QUANTITY)) {
+            Serial.println(">= 80%");
+            SERVO_2.write(30);
+            delay(500);
+            SERVO_2.write(0);
+            delay(500);
+          }
+          else if (i >= QUANTITY) {
+            SERVO_2.write(0);
+            Serial.println(" 100%");
+            QTY_AVAILABLE[i] = QTY_AVAILABLE[i] - QUANTITY;
+            QUANTITY = 0;
+            Serial.println("Dispense Completed!");
+            Serial.print("Quantity Available = ");
+            Serial.println(QTY_AVAILABLE[i]);
+            delay(5000);
+          }
+          else  {}
+          //Serial.println("if condition");
+        }
+      }
+  }
+  
+/*  if (QUANTITY > 0 && QTY_AVAILABLE >= QUANTITY && rfid.PICC_IsNewCardPresent())
         {
           Serial.println("Dispensing");
           
@@ -298,7 +334,7 @@ void loop() {
           }
           else  {}
           //Serial.println("if condition");
-        }
+        }*/
 
         
       /*  else{ 
@@ -397,7 +433,7 @@ void readRFIDs() //**************************************
     {
       if (getCartridgeColor() ==  colors[i])
       {
-      degreesOfColors[i] = pos;
+        degreesOfColors[i] = pos;
       }
     }
   }
