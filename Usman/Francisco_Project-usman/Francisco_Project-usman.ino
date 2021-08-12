@@ -9,8 +9,10 @@
 #include <EEPROM.h>
 #endif
 
-#define SS_PIN 15
-#define RST_PIN 22
+#define SS_1_PIN 13
+#define RST_1_PIN 22
+#define SS_2_PIN 15
+#define RST_2_PIN 21
 
 BLEServer *pServer = NULL;
 BLECharacteristic * pTxCharacteristic;
@@ -27,12 +29,12 @@ int degreesOfColors[11] = {};
 
 float pos = 0;    // variable to store the servo position
 // Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33
-const int OPTICAL_PIN = 3;
-const int SERVO_PIN = 4;
+const int OPTICAL_PIN = 34;
+//const int SERVO_PIN = 4;
 
-int OPTICAL_VALUE;
-int OPTICAL_DURATION;
-int OPTICAL_THRESHOLD = 2000;
+int proximityADC;
+float proximityV;
+
 int INDEX_ARRAY[360][2];
 int STRING_ARRAY[360];
 int INDEX = 0;
@@ -114,6 +116,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 const int HX711_dout = 32; //mcu > HX711 dout pin
 const int HX711_sck = 33; //mcu > HX711 sck pin
 
+const int SERVO_PIN = 4;
 const int SERVO_2_PIN = 5;
 
 Servo SERVO;
@@ -121,9 +124,10 @@ Servo SERVO_2;
 
 //HX711 constructor:
 HX711_ADC LoadCell(HX711_dout, HX711_sck);
-MFRC522 rfid(SS_PIN, RST_PIN);
+MFRC522 rfid_1(SS_1_PIN, RST_1_PIN);
+MFRC522 rfid_2(SS_2_PIN, RST_2_PIN);
 
-MFRC522::MIFARE_Key key;
+//MFRC522::MIFARE_Key key;
 
 const int calVal_eepromAdress = 0;
 unsigned long t = 0;
@@ -169,11 +173,12 @@ void setup() {
   Serial.println("Waiting a client connection to notify...");
 
   
-  rfid.PCD_Init();
+  rfid_1.PCD_Init();
+  rfid_2.PCD_Init();
 
-  for (byte i = 0; i < 6; i++) {
+ /* for (byte i = 0; i < 6; i++) {
     key.keyByte[i] = 0xFF;
-  }
+  }*/
   
   Serial.println();
   Serial.println("Starting...");
@@ -203,6 +208,8 @@ void setup() {
   SERVO_2.attach(SERVO_2_PIN, 600, 2300);
   SERVO_2.write(0);
 
+  pinMode(OPTICAL_PIN, INPUT);
+
   getCartridgeColor();
   Serial.println("End Setup");
 }
@@ -211,11 +218,29 @@ void setup() {
 
 void loop() {
 
+  Serial.println("Start");
+  
+  if(rfid_1.PICC_IsNewCardPresent()){
+    Serial.println("RFID 1 CARD DETECTED");
+    delay(5000);
+    }
+
+    else if(rfid_2.PICC_IsNewCardPresent()){
+      Serial.println("RFID 2 CARD DETECTED");
+      delay(5000);
+    }
+    else{}
+
+    // Read in the ADC and convert it to a voltage:
+    proximityADC = analogRead(OPTICAL_PIN);
+    proximityV = (float)proximityADC * 5.0 / 1023.0;
+    Serial.println(proximityV);
+    delay(100);
+
+
   /*if(COLOR=="Green"){
     Serial.println("Test Successful");    
     }*/
-
-   Serial.println("Start");
 
   String str = String(i);
 
@@ -274,7 +299,7 @@ void loop() {
       SERVO.write(degreesOfColors[i]);
       delay(500);
 
-      if (QUANTITY > 0 && QTY_AVAILABLE[i] >= QUANTITY && rfid.PICC_IsNewCardPresent())
+      if (QUANTITY > 0 && QTY_AVAILABLE[i] >= QUANTITY && rfid_2.PICC_IsNewCardPresent())
         {
           Serial.println("Dispensing");
           
@@ -306,7 +331,7 @@ void loop() {
       }
   }
   
-/*  if (QUANTITY > 0 && QTY_AVAILABLE >= QUANTITY && rfid.PICC_IsNewCardPresent())
+/*  if (QUANTITY > 0 && QTY_AVAILABLE >= QUANTITY && rfid_2.PICC_IsNewCardPresent())
         {
           Serial.println("Dispensing");
           
@@ -354,26 +379,26 @@ int getCartridgeColor() //*************************************
   String colorName = "";
   int color = 0;
 
-  if ( ! rfid.PICC_IsNewCardPresent()) {
+  if ( ! rfid_1.PICC_IsNewCardPresent()) {
     return 0;
   }
 
   // Select one of the cards
-  if ( ! rfid.PICC_ReadCardSerial()) {
+  if ( ! rfid_1.PICC_ReadCardSerial()) {
     return 0;
   }
-  //rfid.PICC_DumpToSerial(&(rfid.uid));
+  //rfid_1.PICC_DumpToSerial(&(rfid_1.uid));
   Serial.println("UID");
   temp_CID = "";
-  for (byte i = 0; i < rfid.uid.size; i++) {
-    if (rfid.uid.uidByte[i] < 0x10)
+  for (byte i = 0; i < rfid_1.uid.size; i++) {
+    if (rfid_1.uid.uidByte[i] < 0x10)
       //Serial.print(F("0"));
       temp_CID += "0";
     else
       //Serial.print(F(""));
       temp_CID += "";
-    //Serial.print(rfid.uid.uidByte[(rfid.uid.size - 1) - i], HEX);
-    temp_CID += String(rfid.uid.uidByte[i], HEX);
+    //Serial.print(rfid_1.uid.uidByte[(rfid_1.uid.size - 1) - i], HEX);
+    temp_CID += String(rfid_1.uid.uidByte[i], HEX);
   }
 
   threeBytes = temp_CID.substring(0, 3);
@@ -395,6 +420,12 @@ int getCartridgeColor() //*************************************
   return color;
 }
 
+/*String getColorName(int getCartridgeColor()){
+  String colorName = Color
+  
+  
+  }*/
+
 
 
 void readRFIDs() //**************************************
@@ -408,26 +439,21 @@ void readRFIDs() //**************************************
     SERVO.write(pos);
     delay(2000);
     
-    OPTICAL_DURATION = 0;
-    pinMode(OPTICAL_PIN, OUTPUT);
-    digitalWrite(OPTICAL_PIN, HIGH);
-    delay(1);
-    pinMode(OPTICAL_PIN, INPUT);
-    digitalWrite(OPTICAL_PIN, LOW);
-    while (digitalRead(OPTICAL_PIN)) {
-      OPTICAL_DURATION++;
-    }
-    OPTICAL_VALUE = (OPTICAL_DURATION > OPTICAL_THRESHOLD);
+    // Read in the ADC and convert it to a voltage:
+    proximityADC = analogRead(OPTICAL_PIN);
+    proximityV = (float)proximityADC * 5.0 / 1023.0;
+    Serial.println(proximityV);
+    delay(100);
 
     Serial.print("INDEX = ");
     Serial.println(INDEX);
     Serial.print("Servo position = ");
     Serial.println(pos);
     Serial.println("OPTICAL_VALUE = ");
-    Serial.println(OPTICAL_VALUE);
+    Serial.println(proximityV);
     Serial.println("");
   
-  if(rfid.PICC_IsNewCardPresent() && OPTICAL_VALUE)
+  if(rfid_1.PICC_IsNewCardPresent() && proximityV < 20)
   {
     for (int i = 0; i < 11; i++)
     {
