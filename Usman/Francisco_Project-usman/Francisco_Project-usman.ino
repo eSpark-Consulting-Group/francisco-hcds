@@ -1,4 +1,3 @@
-//#include <HX711_ADC.h>
 #include "HX711.h"
 #include <MFRC522.h>
 #include <ESP32Servo.h>
@@ -14,6 +13,13 @@
 #define RST_1_PIN 22
 #define SS_2_PIN 15
 #define RST_2_PIN 21
+
+#define DOUT  32
+#define CLK  33
+
+HX711 scale;
+
+float calibration_factor = 6100; //-7050 worked for my 440lb max scale setup
 
 BLEServer *pServer = NULL;
 BLECharacteristic * pTxCharacteristic;
@@ -109,13 +115,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
     }
 };
 
-// HX711 circuit wiring
-const int LOADCELL_DOUT_PIN = 32;
-const int LOADCELL_SCK_PIN = 33;
 
-//pins:
-//const int HX711_dout = 32; //mcu > HX711 dout pin
-//const int HX711_sck = 33; //mcu > HX711 sck pin
 
 const int SERVO_PIN = 27;
 const int SERVO_2_PIN = 5;
@@ -123,8 +123,6 @@ const int SERVO_2_PIN = 5;
 Servo SERVO;
 Servo SERVO_2;
 
-//HX711 constructor:
-//HX711_ADC LoadCell(HX711_dout, HX711_sck);
 MFRC522 rfid_1(SS_1_PIN, RST_1_PIN);
 MFRC522 rfid_2(SS_2_PIN, RST_2_PIN);
 
@@ -132,17 +130,38 @@ const int calVal_eepromAdress = 0;
 unsigned long t = 0;
 
 float i=0;
-HX711 scale;
 
 
 
 void setup() {  //**************************************************************************************************************
   
   pinMode(14, OUTPUT);
-  digitalWrite(14,HIGH);
+  digitalWrite(14, HIGH);
+  pinMode(35, OUTPUT);
+  digitalWrite(35, LOW);
   
   Serial.begin(57600); delay(10);
   SPI.begin();
+
+  Serial.println("HX711 calibration sketch");
+  Serial.println("Remove all weight from scale");
+  Serial.println("After readings begin, place known weight on scale");
+  Serial.println("Press + or a to increase calibration factor");
+  Serial.println("Press - or z to decrease calibration factor");
+
+  scale.begin(DOUT, CLK);
+  scale.set_scale();
+  Serial.println("Test");
+  scale.tare();  //Reset the scale to 0
+  Serial.println("Test 2");
+
+  long zero_factor = scale.read_average(); //Get a baseline reading
+  Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
+  Serial.println(zero_factor);
+
+  scale.set_scale(calibration_factor); //Adjust to this calibration factor
+
+  
 
   // Create the BLE Device
   BLEDevice::init("FRANCISCO BLE TEST");
@@ -180,36 +199,6 @@ void setup() {  //**************************************************************
   rfid_1.PCD_Init();
   rfid_2.PCD_Init();
 
-  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
-
- /* for (byte i = 0; i < 6; i++) {
-    key.keyByte[i] = 0xFF;
-  }*/
-  
- /* Serial.println();
-  Serial.println("Starting...");
-
-  LoadCell.begin();
-  float calibrationValue; // calibration value (see example file "Calibration.ino")
-  calibrationValue = 696.0; // uncomment this if you want to set the calibration value in the sketch
-#if defined(ESP8266)|| defined(ESP32)
-  //EEPROM.begin(512); // uncomment this if you use ESP8266/ESP32 and want to fetch the calibration value from eeprom
-#endif
-  //EEPROM.get(calVal_eepromAdress, calibrationValue); // uncomment this if you want to fetch the calibration value from eeprom
-
-  unsigned long stabilizingtime = 2000; // preciscion right after power-up can be improved by adding a few seconds of stabilizing time
-  boolean _tare = true; //set this to false if you don't want tare to be performed in the next step
-  
-  LoadCell.start(stabilizingtime, _tare);
-  if (LoadCell.getTareTimeoutFlag()) {
-    Serial.println("Timeout, check MCU>HX711 wiring and pin designations");
-    while (1);
-  }
-  else {
-    LoadCell.setCalFactor(calibrationValue); // set calibration value (float)
-    Serial.println("Startup is complete");
-  } */
-
   SERVO.attach(SERVO_PIN, 600, 2300);
   SERVO.write(0);
   SERVO_2.attach(SERVO_2_PIN, 600, 2300);
@@ -217,13 +206,13 @@ void setup() {  //**************************************************************
 
   pinMode(OPTICAL_PIN, INPUT);
   
-  /*readRFIDs();
+  readRFIDs();
   Serial.print("Angle of Blue : ");
   for(int i=0; i<11; i++)
   {
   Serial.println(degreesOfColors[i]);
   }
-  delay(100000);*/
+  delay(100000);
   Serial.println("End Setup");
 }
 
@@ -276,17 +265,24 @@ void loop() {  //***************************************************************
         oldDeviceConnected = deviceConnected;
     }
 
- //   if (scale.is_ready()) {
+  i = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
+  Serial.print(i, 1);
+  Serial.print(" gram"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
+  /*Serial.print(" calibration_factor: ");
+  Serial.print(calibration_factor);*/
+  Serial.println();
+
+ /*   if (scale.is_ready()) {
     long reading = scale.read();
     Serial.print("HX711 reading: ");
     Serial.println(reading);
-/*  } 
+  } 
   else {
     Serial.println("HX711 not found.");
   }
-  delay(50);*/
+  delay(50);
   
- /* static boolean newDataReady = 0;
+  static boolean newDataReady = 0;
   const int serialPrintInterval = 0; //increase value to slow down serial print activity
 
   // check for new data/start next conversion:
