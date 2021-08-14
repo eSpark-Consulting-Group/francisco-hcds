@@ -1,4 +1,5 @@
-#include <HX711_ADC.h>
+//#include <HX711_ADC.h>
+#include "HX711.h"
 #include <MFRC522.h>
 #include <ESP32Servo.h>
 #include <BLEDevice.h>
@@ -108,9 +109,13 @@ class MyCallbacks: public BLECharacteristicCallbacks {
     }
 };
 
+// HX711 circuit wiring
+const int LOADCELL_DOUT_PIN = 32;
+const int LOADCELL_SCK_PIN = 33;
+
 //pins:
-const int HX711_dout = 32; //mcu > HX711 dout pin
-const int HX711_sck = 33; //mcu > HX711 sck pin
+//const int HX711_dout = 32; //mcu > HX711 dout pin
+//const int HX711_sck = 33; //mcu > HX711 sck pin
 
 const int SERVO_PIN = 27;
 const int SERVO_2_PIN = 5;
@@ -119,7 +124,7 @@ Servo SERVO;
 Servo SERVO_2;
 
 //HX711 constructor:
-HX711_ADC LoadCell(HX711_dout, HX711_sck);
+//HX711_ADC LoadCell(HX711_dout, HX711_sck);
 MFRC522 rfid_1(SS_1_PIN, RST_1_PIN);
 MFRC522 rfid_2(SS_2_PIN, RST_2_PIN);
 
@@ -127,6 +132,7 @@ const int calVal_eepromAdress = 0;
 unsigned long t = 0;
 
 float i=0;
+HX711 scale;
 
 
 
@@ -134,8 +140,6 @@ void setup() {  //**************************************************************
   
   pinMode(14, OUTPUT);
   digitalWrite(14,HIGH);
-  pinMode(35, OUTPUT);
-  digitalWrite(35,HIGH);
   
   Serial.begin(57600); delay(10);
   SPI.begin();
@@ -176,11 +180,13 @@ void setup() {  //**************************************************************
   rfid_1.PCD_Init();
   rfid_2.PCD_Init();
 
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+
  /* for (byte i = 0; i < 6; i++) {
     key.keyByte[i] = 0xFF;
   }*/
   
-  Serial.println();
+ /* Serial.println();
   Serial.println("Starting...");
 
   LoadCell.begin();
@@ -202,7 +208,7 @@ void setup() {  //**************************************************************
   else {
     LoadCell.setCalFactor(calibrationValue); // set calibration value (float)
     Serial.println("Startup is complete");
-  }
+  } */
 
   SERVO.attach(SERVO_PIN, 600, 2300);
   SERVO.write(0);
@@ -211,15 +217,20 @@ void setup() {  //**************************************************************
 
   pinMode(OPTICAL_PIN, INPUT);
   
- // readRFIDs();
- // delay(100000);
+  /*readRFIDs();
+  Serial.print("Angle of Blue : ");
+  for(int i=0; i<11; i++)
+  {
+  Serial.println(degreesOfColors[i]);
+  }
+  delay(100000);*/
   Serial.println("End Setup");
 }
 
 
 
 void loop() {  //*************************************************************************************************************************************
-
+   
   Serial.println("Start");
   
  /* if(rfid_1.PICC_IsNewCardPresent()){
@@ -264,8 +275,18 @@ void loop() {  //***************************************************************
     // do stuff here on connecting
         oldDeviceConnected = deviceConnected;
     }
+
+ //   if (scale.is_ready()) {
+    long reading = scale.read();
+    Serial.print("HX711 reading: ");
+    Serial.println(reading);
+/*  } 
+  else {
+    Serial.println("HX711 not found.");
+  }
+  delay(50);*/
   
-  static boolean newDataReady = 0;
+ /* static boolean newDataReady = 0;
   const int serialPrintInterval = 0; //increase value to slow down serial print activity
 
   // check for new data/start next conversion:
@@ -292,7 +313,7 @@ void loop() {  //***************************************************************
   // check if last tare operation is complete:
   if (LoadCell.getTareStatus() == true) {
     Serial.println("Tare complete");
-  }
+  } */
 
   for(int i = 1; i<=11; i++)
   {
