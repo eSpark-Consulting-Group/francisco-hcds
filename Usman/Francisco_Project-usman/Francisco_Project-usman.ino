@@ -206,11 +206,15 @@ void setup() {  //**************************************************************
 
   pinMode(OPTICAL_PIN, INPUT);
   
+  
+  Serial.println("Scan Start");
   readRFIDs();
-  Serial.print("Angle of Blue : ");
+  Serial.println("Scan Stop");
+  Serial.print("11 Angles : ");
   for(int i=0; i<11; i++)
   {
-  Serial.println(degreesOfColors[i]);
+  Serial.print(degreesOfColors[i]);
+  Serial.print("      ");
   }
   delay(100000);
   Serial.println("End Setup");
@@ -272,45 +276,6 @@ void loop() {  //***************************************************************
   Serial.print(calibration_factor);*/
   Serial.println();
 
- /*   if (scale.is_ready()) {
-    long reading = scale.read();
-    Serial.print("HX711 reading: ");
-    Serial.println(reading);
-  } 
-  else {
-    Serial.println("HX711 not found.");
-  }
-  delay(50);
-  
-  static boolean newDataReady = 0;
-  const int serialPrintInterval = 0; //increase value to slow down serial print activity
-
-  // check for new data/start next conversion:
-  if (LoadCell.update()) newDataReady = true;
-
-  // get smoothed value from the dataset:
-  if (newDataReady) {
-    if (millis() > t + serialPrintInterval) {
-      i = LoadCell.getData();
-      Serial.print("Load_cell output val: ");
-      i = ( i > 0 ? i : 0 ) ;
-      Serial.println(i);
-      newDataReady = 0;
-      t = millis();
-    }
-  }
-    
-  // receive command from serial terminal, send 't' to initiate tare operation:
-  if (Serial.available() > 0) {
-    char inByte = Serial.read();
-    if (inByte == 't') LoadCell.tareNoDelay();
-  }
-
-  // check if last tare operation is complete:
-  if (LoadCell.getTareStatus() == true) {
-    Serial.println("Tare complete");
-  } */
-
   for(int i = 1; i<=11; i++)
   {
     if(COLOR == color_names[i])
@@ -350,7 +315,7 @@ void loop() {  //***************************************************************
       }
   }
   
-/*  if (QUANTITY > 0 && QTY_AVAILABLE >= QUANTITY && rfid_2.PICC_IsNewCardPresent())
+ /* if (QUANTITY > 0 && QTY_AVAILABLE >= QUANTITY && rfid_2.PICC_IsNewCardPresent())
         {
           Serial.println("Dispensing");
           
@@ -378,10 +343,10 @@ void loop() {  //***************************************************************
           }
           else  {}
           //Serial.println("if condition");
-        }*/
+        }
 
         
-      /*  else{ 
+        else{ 
           SERVO_2.write(0);
           Serial.println("else condition");
         }
@@ -396,7 +361,7 @@ int getCartridgeColor() //*************************************
   Serial.println("In getCartridgeColor Function");
   String threeBytes = "";
   String colorName = "";
-  int color = 0;
+  int color_A = 0;
 
   if ( ! rfid_1.PICC_IsNewCardPresent()) {
     Serial.println("IsNewcCardPresent");
@@ -430,23 +395,23 @@ int getCartridgeColor() //*************************************
   {
     if (threeBytes == CIDS[i])
     {
-      color = colors[i];
+      color_A = colors[i];
       colorName = color_names[i];
     }
   }
 
   Serial.println(temp_CID);
   Serial.println(threeBytes);
-  Serial.println(color);
+  Serial.println(color_A);
   Serial.println(colorName);
   Serial.println("End getCartridge Fucntion");
-  return color;
+  return color_A;
 }
 
-/*String getColorName(int getCartridgeColor()){
-  String colorName = Color
-  
-  
+
+
+/*  String getColorName(){
+  String colorName = getCartridgeColor();
   }*/
 
 
