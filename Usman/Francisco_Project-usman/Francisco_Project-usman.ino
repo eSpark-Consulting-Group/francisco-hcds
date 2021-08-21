@@ -208,6 +208,7 @@ void setup() {  //**************************************************************
   
   
   Serial.println("Scan Start");
+//  getCartridgeColor();
   readRFIDs();
   Serial.println("Scan Stop");
   Serial.print("11 Angles : ");
@@ -356,7 +357,7 @@ void loop() {  //***************************************************************
 }
 
 
-int getCartridgeColor() //*************************************
+/*int getCartridgeColor() //*************************************
 {
   Serial.println("In getCartridgeColor Function");
   String threeBytes = "";
@@ -406,17 +407,12 @@ int getCartridgeColor() //*************************************
   Serial.println(colorName);
   Serial.println("End getCartridge Fucntion");
   return color_A;
-}
+}*/
 
 
 
-/*  String getColorName(){
-  String colorName = getCartridgeColor();
-  }*/
 
-
-
-void readRFIDs() //**************************************
+ void readRFIDs() //**************************************
 {
 
   Serial.println("In readRFIDs Function");
@@ -444,14 +440,65 @@ void readRFIDs() //**************************************
   if(rfid_1.PICC_IsNewCardPresent() && proximityV < 20)
   {
     Serial.println("RFID + OPTICAL DETECTED");
+
+    
+  /*  int ID = getCartridgeColor();
     for (int i = 0; i < 11; i++)
     {
-      if (getCartridgeColor() ==  colors[i])
+      if (ID == colors[i])
       {
+        ID = -1;
         degreesOfColors[i] = pos;
         Serial.println("COLOR MATCHED");
+        delay(5000);
       }
+    } */
+
+    String threeBytes = "";
+  String colorName = "";
+  int color_A = 0;
+
+  if ( ! rfid_1.PICC_IsNewCardPresent()) {
+    Serial.println("IsNewcCardPresent");
+  }
+
+  // Select one of the cards
+  rfid_1.PICC_DumpToSerial(&(rfid_1.uid));
+  Serial.println("UID");
+  temp_CID = "";
+  
+  for (byte i = 0; i < rfid_1.uid.size; i++) {
+    if (rfid_1.uid.uidByte[i] < 0x10)
+      //Serial.print(F("0"));
+      temp_CID += "0";
+    else
+      //Serial.print(F(""));
+      temp_CID += "";
+    //Serial.print(rfid_1.uid.uidByte[(rfid_1.uid.size - 1) - i], HEX);
+    temp_CID += String(rfid_1.uid.uidByte[i], HEX);
+  }
+
+  threeBytes = temp_CID.substring(0, 3);
+
+  // Search Color
+  for (int i = 0; i < 11; i++)
+  {
+    if (threeBytes == CIDS[i])
+    {
+      color_A = colors[i];
+      colorName = color_names[i];
+      degreesOfColors[i] = pos;
+      
     }
+  }
+
+  Serial.println(temp_CID);
+  Serial.println(threeBytes);
+  Serial.println(color_A);
+  Serial.println(colorName);
+  Serial.println("End getCartridge Fucntion");
+
+    
   }
 }
 }
