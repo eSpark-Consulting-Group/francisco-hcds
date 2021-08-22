@@ -207,8 +207,8 @@ void setup() {  //**************************************************************
   pinMode(OPTICAL_PIN, INPUT);
   
   
-  Serial.println("Scan Start");
-//  getCartridgeColor();
+/*  Serial.println("Scan Start");
+  getCartridgeColor();
   readRFIDs();
   Serial.println("Scan Stop");
   Serial.print("11 Angles : ");
@@ -217,7 +217,82 @@ void setup() {  //**************************************************************
   Serial.print(degreesOfColors[i]);
   Serial.print("      ");
   }
-  delay(100000);
+  delay(100000);*/
+
+//****************************************************
+/*for (INDEX = 0; INDEX < 360; INDEX++) {
+    
+    pos = INDEX / 2;
+    SERVO.write(pos);
+    delay(20);
+    
+    // Read in the ADC and convert it to a voltage:
+    proximityADC = analogRead(OPTICAL_PIN);
+    proximityV = (float)proximityADC * 5.0 / 1023.0;
+    Serial.println(proximityV);
+  //  delay(100);
+
+    Serial.print("INDEX = ");
+    Serial.println(INDEX);
+    Serial.print("Servo position = ");
+    Serial.println(pos);
+    Serial.print("OPTICAL_VALUE = ");
+    Serial.println(proximityV);
+    Serial.println("");
+  
+  if(rfid_1.PICC_IsNewCardPresent() && proximityV < 20)
+  {
+    Serial.println("RFID + OPTICAL DETECTED");
+
+    String threeBytes = "";
+  String colorName = "";
+  int color_A = 0;
+
+  if ( ! rfid_1.PICC_IsNewCardPresent()) {
+    Serial.println("IsNewcCardPresent");
+  }
+
+  // Select one of the cards
+  rfid_1.PICC_DumpToSerial(&(rfid_1.uid));
+  Serial.println("UID");
+  temp_CID = "";
+  
+  for (byte i = 0; i < rfid_1.uid.size; i++) {
+    if (rfid_1.uid.uidByte[i] < 0x10)
+      //Serial.print(F("0"));
+      temp_CID += "0";
+    else
+      //Serial.print(F(""));
+      temp_CID += "";
+    //Serial.print(rfid_1.uid.uidByte[(rfid_1.uid.size - 1) - i], HEX);
+    temp_CID += String(rfid_1.uid.uidByte[i], HEX);
+  }
+
+  threeBytes = temp_CID.substring(0, 3);
+
+  // Search Color
+  for (int i = 0; i < 11; i++)
+  {
+    if (threeBytes == CIDS[i])
+    {
+      color_A = colors[i];
+      colorName = color_names[i];
+      degreesOfColors[i] = pos;
+      
+    }
+  }
+
+  Serial.println(temp_CID);
+  Serial.println(threeBytes);
+  Serial.println(color_A);
+  Serial.println(colorName);
+  }
+} */
+
+//********************************************************************
+
+
+  
   Serial.println("End Setup");
 }
 
@@ -496,9 +571,6 @@ void loop() {  //***************************************************************
   Serial.println(threeBytes);
   Serial.println(color_A);
   Serial.println(colorName);
-  Serial.println("End getCartridge Fucntion");
-
-    
   }
 }
 }
