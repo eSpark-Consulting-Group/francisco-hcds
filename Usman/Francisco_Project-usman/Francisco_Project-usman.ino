@@ -64,15 +64,11 @@ int proximityADC;
 
 float proximityV;
 
-int INDEX_ARRAY[360][2];
-
-int STRING_ARRAY[360];
-
 int INDEX = 0;
 
 float QTY_AVAILABLE[11] = {100,100,100,100,100,100,100,100,100,100,100}; 
 
-float QUANTITY = 20;
+float QUANTITY = 0;
 
 String COLOR;
 
@@ -146,8 +142,6 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 
         Serial.println(QUANTITY);
 
-        Serial.println(100-QUANTITY);
-
         Serial.println("");
 
         Serial.println("");
@@ -175,9 +169,9 @@ const int calVal_eepromAdress = 0;
 
 unsigned long t = 0;
 
-float i=0;
+float weight = 0;
 
-
+bool flag_1 = 0;
 
 void setup() {  //**************************************************************************************************************
 
@@ -289,28 +283,23 @@ void setup() {  //**************************************************************
   readRFIDs();
   Serial.println();
   Serial.println();
+  Serial.println("Color Containers and their respective Angles");
   Serial.println();
 
-  Serial.print("Color Name");
-  Serial.print(" ");
-  Serial.print("Container ID");
-  Serial.print(" ");
-  Serial.print("Color ID");
-  Serial.print(" ");
-  Serial.println("Container Angle");
+ /* Serial.print("Color Name");
+  Serial.print("   ");
+  Serial.println("Container Angle");*/
 
   for(int i=0; i<11; i++)
   {
-  Serial.print(color_names[i]);
-  Serial.print(" ");
-  Serial.print(CIDS[i]);
-  Serial.print(" ");
-  Serial.print(colors[i]);
-  Serial.print(" ");
+  Serial.println(color_names[i]);
   Serial.println(degreesOfColors[i]);
+  Serial.println();
   }
 
-  delay(100000);
+  delay(5000);
+
+  SERVO.write(90);
 
   Serial.println("End Setup");
 
@@ -320,11 +309,11 @@ void loop() {  //***************************************************************
 
    
 
-  Serial.println("Start loop");
+ // Serial.println("Start loop");
 
 
 
-  String str = String(i);
+  String str = String(weight);
 
 
 
@@ -365,11 +354,11 @@ void loop() {  //***************************************************************
     }
 
 
-  i = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
+  weight = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
 
-  Serial.print(i, 1);
+  Serial.print(weight, 1);
 
-  Serial.print(" gram"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
+  Serial.print(" gram(s)"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
 
   /*Serial.print(" calibration_factor: ");
 
@@ -378,43 +367,53 @@ void loop() {  //***************************************************************
   Serial.println();
 
 
-  for(int i = 1; i<=11; i++)
+  for(int i = 0; i < 11; i++)
 
   {
-
     if(COLOR == color_names[i])
 
     {
-
+      if (flag_1 == 0)
+      {
+        
       SERVO.write(degreesOfColors[i]);
 
-      delay(500);
+      Serial.println("Servo adjustment");
+      
+      delay(3000);
+      
+      flag_1 = 1;
+      
+      }
 
       if (QUANTITY > 0 && QTY_AVAILABLE[i] >= QUANTITY && rfid_2.PICC_IsNewCardPresent())
 
         {
-
-          Serial.println("Dispensing");
+          
+          Serial.println();
+    //      Serial.println("Dispensing");
 
           
 
-          if (i < (0.8 * QUANTITY)) {
+          if (weight < (0.8 * QUANTITY)) {
+
+            Serial.print("Dispense : ");
 
             Serial.println("< 80%");
 
             SERVO_2.write(30);
 
-            delay(10);
-
           }
 
-          else if (i >= (0.8*QUANTITY)  && (i < QUANTITY)) {
+          else if (weight >= (0.8*QUANTITY)  && (weight < QUANTITY)) {
+
+            Serial.print("Dispense : ");
 
             Serial.println(">= 80%");
 
             SERVO_2.write(30);
 
-            delay(500);
+            delay(100);
 
             SERVO_2.write(0);
 
@@ -422,11 +421,19 @@ void loop() {  //***************************************************************
 
           }
 
-          else if (i >= QUANTITY) {
+          else if (weight >= QUANTITY) {
 
             SERVO_2.write(0);
 
-            Serial.println(" 100%");
+            COLOR = "";
+            
+            flag_1 = 0;
+
+            Serial.println();
+
+            Serial.print("Dispense : ");
+
+            Serial.println("100%");
 
             QTY_AVAILABLE[i] = QTY_AVAILABLE[i] - QUANTITY;
 
@@ -438,7 +445,9 @@ void loop() {  //***************************************************************
 
             Serial.println(QTY_AVAILABLE[i]);
 
-            delay(5000);
+            Serial.println();
+
+            delay(10000);
 
           }
 
