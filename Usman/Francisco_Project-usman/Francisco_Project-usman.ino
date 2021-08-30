@@ -305,25 +305,30 @@ void setup() {  //**************************************************************
 
 }
 
+int str = 0;
 void loop() {  //*************************************************************************************************************************************
 
    
 
  // Serial.println("Start loop");
 
+  Serial.println("Helo");
 
+  //str = String(weight);
+  str++;
 
-  String str = String(weight);
+  if (str > 300)
+    str = 0;
 
 
 
   if (deviceConnected) {
 
-        pTxCharacteristic->setValue(str.c_str());
+        pTxCharacteristic->setValue((uint8_t*)&str, 4);
 
         pTxCharacteristic->notify();
 
-    delay(10); // bluetooth stack will go into congestion, if too many packets are sent
+    delay(500); // bluetooth stack will go into congestion, if too many packets are sent
 
   }
 
@@ -354,8 +359,8 @@ void loop() {  //***************************************************************
     }
 
 
-  weight = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
-
+  //weight = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
+  Serial.println("Helo1");
   Serial.print(weight, 1);
 
   Serial.print(" gram(s)"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
