@@ -204,17 +204,17 @@ void setup() {  //**************************************************************
 
   Serial.println("Test");
 
-  scale.tare();  //Reset the scale to 0
+//  scale.tare();  //Reset the scale to 0
 
   Serial.println("Test 2");
 
-  long zero_factor = scale.read_average(); //Get a baseline reading
+  //long zero_factor = scale.read_average(); //Get a baseline reading
 
   Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
 
-  Serial.println(zero_factor);
+//  Serial.println(zero_factor);
 
-  scale.set_scale(calibration_factor); //Adjust to this calibration factor
+  //scale.set_scale(calibration_factor); //Adjust to this calibration factor
 
   // Create the BLE Device
 
