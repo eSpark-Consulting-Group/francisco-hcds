@@ -1,5 +1,7 @@
 #include "HX711.h"
 
+#include <ArduinoJson.h>
+
 #include <MFRC522.h>
 
 #include <ESP32Servo.h>
@@ -169,6 +171,8 @@ MFRC522 rfid_1(SS_1_PIN, RST_1_PIN);
 
 MFRC522 rfid_2(SS_2_PIN, RST_2_PIN);
 
+StaticJsonDocument<200> doc;
+
 const int calVal_eepromAdress = 0;
 
 unsigned long t = 0;
@@ -214,11 +218,17 @@ void setup() {  //**************************************************************
 
 //  long zero_factor = scale.read_average(); //Get a baseline reading
 
+  //long zero_factor = scale.read_average(); //Get a baseline reading
+
+
   Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
 
 //  Serial.println(zero_factor);
 
 //  scale.set_scale(calibration_factor); //Adjust to this calibration factor
+
+  //scale.set_scale(calibration_factor); //Adjust to this calibration factor
+
 
   // Create the BLE Device
 
@@ -305,11 +315,19 @@ void setup() {  //**************************************************************
 
   SERVO.write(90);
 
-  SEND_STATUS = "{\"STATUS\":\"r\"}";
+  doc["STATUS"] = "r";
+  serializeJson(doc, Serial);
 
-  pTxCharacteristic->setValue(SEND_STATUS.c_str());
+//  pTxCharacteristic->setValue(doc.c_str());
 
-  pTxCharacteristic->notify();
+//  pTxCharacteristic->notify();
+  
+
+ // SEND_STATUS = "{\"STATUS\":\"r\"}";
+
+ // pTxCharacteristic->setValue(SEND_STATUS.c_str());
+
+ // pTxCharacteristic->notify();*/
 
   delay(10000000);
 
@@ -318,25 +336,30 @@ void setup() {  //**************************************************************
 
 }
 
+int str = 0;
 void loop() {  //*************************************************************************************************************************************
 
    
 
  // Serial.println("Start loop");
 
+  Serial.println("Helo");
 
+  //str = String(weight);
+  str++;
 
-  String str = String(weight);
+  if (str > 300)
+    str = 0;
 
 
 
   if (deviceConnected) {
 
-        pTxCharacteristic->setValue(str.c_str());
+        pTxCharacteristic->setValue((uint8_t*)&str, 4);
 
         pTxCharacteristic->notify();
 
-    delay(10); // bluetooth stack will go into congestion, if too many packets are sent
+    delay(500); // bluetooth stack will go into congestion, if too many packets are sent
 
   }
 
@@ -367,8 +390,8 @@ void loop() {  //***************************************************************
     }
 
 
-  weight = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
-
+  //weight = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
+  Serial.println("Helo1");
   Serial.print(weight, 1);
 
   Serial.print(" gram(s)"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
