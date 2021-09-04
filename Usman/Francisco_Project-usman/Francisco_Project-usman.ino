@@ -38,6 +38,7 @@ BLEServer *pServer = NULL;
 
 BLECharacteristic * pTxCharacteristic;
 
+
 bool deviceConnected = false;
 
 bool oldDeviceConnected = false;
@@ -73,6 +74,9 @@ float QUANTITY = 0;
 String COLOR;
 
 String QTY;
+
+String SEND_STATUS;
+
 
 // See the following for generating UUIDs:
 
@@ -200,21 +204,21 @@ void setup() {  //**************************************************************
 
   scale.begin(DOUT, CLK);
 
-  scale.set_scale();
+//  scale.set_scale();
 
   Serial.println("Test");
 
-  scale.tare();  //Reset the scale to 0
+//  scale.tare();  //Reset the scale to 0
 
   Serial.println("Test 2");
 
-  long zero_factor = scale.read_average(); //Get a baseline reading
+//  long zero_factor = scale.read_average(); //Get a baseline reading
 
   Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
 
-  Serial.println(zero_factor);
+//  Serial.println(zero_factor);
 
-  scale.set_scale(calibration_factor); //Adjust to this calibration factor
+//  scale.set_scale(calibration_factor); //Adjust to this calibration factor
 
   // Create the BLE Device
 
@@ -301,7 +305,16 @@ void setup() {  //**************************************************************
 
   SERVO.write(90);
 
+  SEND_STATUS = "{\"STATUS\":\"r\"}";
+
+  pTxCharacteristic->setValue(SEND_STATUS.c_str());
+
+  pTxCharacteristic->notify();
+
+  delay(10000000);
+
   Serial.println("End Setup");
+
 
 }
 
@@ -392,6 +405,12 @@ void loop() {  //***************************************************************
           
           Serial.println();
     //      Serial.println("Dispensing");
+    
+            SEND_STATUS = "{\"STATUS\":\"d\"}";
+        
+            pTxCharacteristic->setValue(SEND_STATUS.c_str());
+          
+            pTxCharacteristic->notify();
 
           
 
@@ -456,6 +475,16 @@ void loop() {  //***************************************************************
           //Serial.println("if condition");
 
         }
+
+
+
+        SEND_STATUS = "{\"STATUS\":\"f\"}";
+        
+        pTxCharacteristic->setValue(SEND_STATUS.c_str());
+          
+        pTxCharacteristic->notify();
+
+
 
       }
 
