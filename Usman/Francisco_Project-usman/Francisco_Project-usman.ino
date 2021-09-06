@@ -69,7 +69,7 @@ float proximityV;
 
 int INDEX = 0;
 
-float QTY_AVAILABLE[11] = {100,100,100,100,100,100,100,100,100,100,100}; 
+float QTY_AVAILABLE[11] = {100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
 
 float QUANTITY = 0;
 
@@ -78,6 +78,10 @@ String COLOR;
 String QTY;
 
 String SEND_STATUS;
+
+String SEND_STATUS_BLE;
+
+bool READY_FLAG = 0;
 
 
 // See the following for generating UUIDs:
@@ -89,6 +93,9 @@ String SEND_STATUS;
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 
 #define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+
+StaticJsonDocument<200> doc_in;
+StaticJsonDocument<200> doc_out;
 
 class MyServerCallbacks: public BLEServerCallbacks {
 
@@ -120,7 +127,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 
         String s;
 
-        for (int i = 0; i < rxValue.length(); i++){
+        for (int i = 0; i < rxValue.length(); i++) {
 
           Serial.print(rxValue[i]);
 
@@ -128,13 +135,19 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 
         }
 
-        byte x = s.indexOf(',');
+        
+        deserializeJson(doc_in, s);
+        const char* C_COLOR = doc_in["COLOR"];
+        COLOR = String(C_COLOR);
+        QUANTITY = doc_in["QUANTITY"];
 
-        COLOR = s.substring(0,x);
+   /*     byte x = s.indexOf(',');
 
-        QTY = s.substring(x+1,sizeof(s)-1);
+        COLOR = s.substring(0, x);
 
-        QUANTITY = QTY.toFloat();
+        QTY = s.substring(x + 1, sizeof(s) - 1);
+
+        QUANTITY = QTY.toFloat();*/
 
         Serial.println("");
 
@@ -151,6 +164,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         Serial.println("");
 
         Serial.println("");
+
 
       }
 
@@ -171,8 +185,6 @@ MFRC522 rfid_1(SS_1_PIN, RST_1_PIN);
 
 MFRC522 rfid_2(SS_2_PIN, RST_2_PIN);
 
-StaticJsonDocument<200> doc;
-
 const int calVal_eepromAdress = 0;
 
 unsigned long t = 0;
@@ -183,7 +195,7 @@ bool flag_1 = 0;
 
 void setup() {  //**************************************************************************************************************
 
-  
+
   pinMode(14, OUTPUT);
 
   digitalWrite(14, HIGH);
@@ -208,24 +220,24 @@ void setup() {  //**************************************************************
 
   scale.begin(DOUT, CLK);
 
-//  scale.set_scale();
+  //  scale.set_scale();
 
   Serial.println("Test");
 
-//  scale.tare();  //Reset the scale to 0
+  //  scale.tare();  //Reset the scale to 0
 
   Serial.println("Test 2");
 
-//  long zero_factor = scale.read_average(); //Get a baseline reading
+  //  long zero_factor = scale.read_average(); //Get a baseline reading
 
   //long zero_factor = scale.read_average(); //Get a baseline reading
 
 
   Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
 
-//  Serial.println(zero_factor);
+  //  Serial.println(zero_factor);
 
-//  scale.set_scale(calibration_factor); //Adjust to this calibration factor
+  //  scale.set_scale(calibration_factor); //Adjust to this calibration factor
 
   //scale.set_scale(calibration_factor); //Adjust to this calibration factor
 
@@ -252,21 +264,21 @@ void setup() {  //**************************************************************
 
   pTxCharacteristic = pService->createCharacteristic(
 
-                    CHARACTERISTIC_UUID_TX,
+                        CHARACTERISTIC_UUID_TX,
 
-                    BLECharacteristic::PROPERTY_NOTIFY
+                        BLECharacteristic::PROPERTY_NOTIFY
 
-                  );               
+                      );
 
   pTxCharacteristic->addDescriptor(new BLE2902());
 
   BLECharacteristic * pRxCharacteristic = pService->createCharacteristic(
 
-                       CHARACTERISTIC_UUID_RX,
+      CHARACTERISTIC_UUID_RX,
 
-                      BLECharacteristic::PROPERTY_WRITE
+      BLECharacteristic::PROPERTY_WRITE
 
-                    );
+                                          );
 
   pRxCharacteristic->setCallbacks(new MyCallbacks());
 
@@ -294,42 +306,45 @@ void setup() {  //**************************************************************
 
   pinMode(OPTICAL_PIN, INPUT);
 
-  readRFIDs();
-  Serial.println();
-  Serial.println();
-  Serial.println("Color Containers and their respective Angles");
-  Serial.println();
+  /*  readRFIDs();
+    Serial.println();
+    Serial.println();
+    Serial.println("Color Containers and their respective Angles");
+    Serial.println();
 
- /* Serial.print("Color Name");
-  Serial.print("   ");
-  Serial.println("Container Angle");*/
+    Serial.print("Color Name");
+    Serial.print("   ");
+    Serial.println("Container Angle");
 
-  for(int i=0; i<11; i++)
-  {
-  Serial.println(color_names[i]);
-  Serial.println(degreesOfColors[i]);
-  Serial.println();
-  }
+    for(int i=0; i<11; i++)
+    {
+    Serial.println(color_names[i]);
+    Serial.println(degreesOfColors[i]);
+    Serial.println();
+    }
 
-  delay(5000);
+    delay(5000);
 
   SERVO.write(90);
 
-  doc["STATUS"] = "r";
-  serializeJson(doc, Serial);
+    doc_out["STATUS"] = "r";
+    serializeJson(doc_out, SEND_STATUS_BLE);
 
-//  pTxCharacteristic->setValue(doc.c_str());
+    Serial.println("JSON");
+    Serial.println(SEND_STATUS_BLE);
 
-//  pTxCharacteristic->notify();
-  
+    pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
 
- // SEND_STATUS = "{\"STATUS\":\"r\"}";
+    pTxCharacteristic->notify();
 
- // pTxCharacteristic->setValue(SEND_STATUS.c_str());
 
- // pTxCharacteristic->notify();*/
+   SEND_STATUS = "{\"STATUS\":\"r\"}";
 
-  delay(10000000);
+   pTxCharacteristic->setValue(SEND_STATUS.c_str());
+
+   pTxCharacteristic->notify();
+
+   delay(10000000);*/
 
   Serial.println("End Setup");
 
@@ -339,11 +354,10 @@ void setup() {  //**************************************************************
 int str = 0;
 void loop() {  //*************************************************************************************************************************************
 
-   
 
- // Serial.println("Start loop");
 
-  Serial.println("Helo");
+  // Serial.println("Start loop");
+
 
   //str = String(weight);
   str++;
@@ -355,161 +369,176 @@ void loop() {  //***************************************************************
 
   if (deviceConnected) {
 
-        pTxCharacteristic->setValue((uint8_t*)&str, 4);
+    pTxCharacteristic->setValue((uint8_t*)&str, 4);
 
-        pTxCharacteristic->notify();
+    pTxCharacteristic->notify();
 
-    delay(500); // bluetooth stack will go into congestion, if too many packets are sent
+    if(READY_FLAG == 0)
+    {
+    SEND_STATUS_BLE = "";
+    doc_out["STATUS"] = "r";
+    serializeJson(doc_out, SEND_STATUS_BLE);
+    Serial.println("JSON");
+    Serial.println(SEND_STATUS_BLE);
+    pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
+    pTxCharacteristic->notify();
+//    READY_FLAG = 1;
+    }
 
   }
 
 
 
-    // disconnecting
+  // disconnecting
 
-    if (!deviceConnected && oldDeviceConnected) {
+  if (!deviceConnected && oldDeviceConnected) {
 
-        delay(10); // give the bluetooth stack the chance to get things ready
+    delay(10); // give the bluetooth stack the chance to get things ready
 
-        pServer->startAdvertising(); // restart advertising
+    pServer->startAdvertising(); // restart advertising
 
-        Serial.println("start advertising");
+    Serial.println("start advertising");
 
-        oldDeviceConnected = deviceConnected;
+    oldDeviceConnected = deviceConnected;
 
-    }
+  }
 
-    // connecting
+  // connecting
 
-    if (deviceConnected && !oldDeviceConnected) {
+  if (deviceConnected && !oldDeviceConnected) {
 
     // do stuff here on connecting
 
-        oldDeviceConnected = deviceConnected;
+    oldDeviceConnected = deviceConnected;
 
-    }
+  }
 
 
   //weight = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
-  Serial.println("Helo1");
   Serial.print(weight, 1);
 
   Serial.print(" gram(s)"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
 
   /*Serial.print(" calibration_factor: ");
 
-  Serial.print(calibration_factor);*/
+    Serial.print(calibration_factor);*/
 
   Serial.println();
 
 
-  for(int i = 0; i < 11; i++)
+  for (int i = 0; i < 11; i++)
 
   {
-    if(COLOR == color_names[i])
+    if (COLOR == color_names[i])
 
     {
       if (flag_1 == 0)
       {
-        
-      SERVO.write(degreesOfColors[i]);
 
-      Serial.println("Servo adjustment");
-      
-      delay(3000);
-      
-      flag_1 = 1;
-      
+        SERVO.write(degreesOfColors[i]);
+
+        Serial.println("Servo adjustment");
+
+        delay(3000);
+
+        flag_1 = 1;
+
       }
 
       if (QUANTITY > 0 && QTY_AVAILABLE[i] >= QUANTITY && rfid_2.PICC_IsNewCardPresent())
 
-        {
-          
-          Serial.println();
-    //      Serial.println("Dispensing");
-    
-            SEND_STATUS = "{\"STATUS\":\"d\"}";
-        
-            pTxCharacteristic->setValue(SEND_STATUS.c_str());
-          
-            pTxCharacteristic->notify();
+      {
+        READY_FLAG = 1;
 
-          
+        Serial.println();
+        //      Serial.println("Dispensing");
 
-          if (weight < (0.8 * QUANTITY)) {
-
-            Serial.print("Dispense : ");
-
-            Serial.println("< 80%");
-
-            SERVO_2.write(30);
-
-          }
-
-          else if (weight >= (0.8*QUANTITY)  && (weight < QUANTITY)) {
-
-            Serial.print("Dispense : ");
-
-            Serial.println(">= 80%");
-
-            SERVO_2.write(30);
-
-            delay(100);
-
-            SERVO_2.write(0);
-
-            delay(500);
-
-          }
-
-          else if (weight >= QUANTITY) {
-
-            SERVO_2.write(0);
-
-            COLOR = "";
-            
-            flag_1 = 0;
-
-            Serial.println();
-
-            Serial.print("Dispense : ");
-
-            Serial.println("100%");
-
-            QTY_AVAILABLE[i] = QTY_AVAILABLE[i] - QUANTITY;
-
-            QUANTITY = 0;
-
-            Serial.println("Dispense Completed!");
-
-            Serial.print("Quantity Available = ");
-
-            Serial.println(QTY_AVAILABLE[i]);
-
-            Serial.println();
-
-            delay(10000);
-
-          }
-
-          else  {}
-
-          //Serial.println("if condition");
-
-        }
-
-
-
-        SEND_STATUS = "{\"STATUS\":\"f\"}";
-        
-        pTxCharacteristic->setValue(SEND_STATUS.c_str());
-          
+        SEND_STATUS_BLE = "";
+        doc_out["STATUS"] = "d";
+        serializeJson(doc_out, SEND_STATUS_BLE);
+        Serial.println("JSON");
+        Serial.println(SEND_STATUS_BLE);
+        pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
         pTxCharacteristic->notify();
 
 
+        if (weight < (0.8 * QUANTITY)) {
+
+          Serial.print("Dispense : ");
+
+          Serial.println("< 80%");
+
+          SERVO_2.write(30);
+
+        }
+
+        else if (weight >= (0.8 * QUANTITY)  && (weight < QUANTITY)) {
+
+          Serial.print("Dispense : ");
+
+          Serial.println(">= 80%");
+
+          SERVO_2.write(30);
+
+          delay(100);
+
+          SERVO_2.write(0);
+
+          delay(500);
+
+        }
+
+        else if (weight >= QUANTITY) {
+
+          SERVO_2.write(0);
+
+          COLOR = "";
+
+          flag_1 = 0;
+
+          READY_FLAG = 0;
+
+          Serial.println();
+
+          Serial.print("Dispense : ");
+
+          Serial.println("100%");
+
+          QTY_AVAILABLE[i] = QTY_AVAILABLE[i] - QUANTITY;
+          
+
+          if(QTY_AVAILABLE[i] < 20)
+          {
+            SEND_STATUS_BLE = "";
+            doc_out["STATUS"] = "f";
+            serializeJson(doc_out, SEND_STATUS_BLE);
+            Serial.println("JSON");
+            Serial.println(SEND_STATUS_BLE);
+            pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
+            pTxCharacteristic->notify();
+          }
+
+          QUANTITY = 0;
+
+          Serial.println("Dispense Completed!");
+
+          Serial.print("Quantity Available = ");
+
+          Serial.println(QTY_AVAILABLE[i]);
+
+          Serial.println();
+
+          delay(10000);
+
+        }
+
+        else  {}
+
+        //Serial.println("if condition");
 
       }
+
+    }
 
   }
 
@@ -552,7 +581,7 @@ int getCartridgeColor() //*************************************
 
   temp_CID = "";
 
-  
+
   for (byte i = 0; i < rfid_1.uid.size; i++) {
 
     if (rfid_1.uid.uidByte[i] < 0x10)
@@ -610,7 +639,7 @@ int getCartridgeColor() //*************************************
 void readRFIDs() //**************************************
 
 {
-  
+
   Serial.println("In readRFIDs Function");
 
   for (INDEX = 0; INDEX < 360; INDEX++) {
@@ -627,7 +656,7 @@ void readRFIDs() //**************************************
 
     proximityV = (float)proximityADC * 5.0 / 1023.0;
 
-  //  delay(100);
+    //  delay(100);
 
     Serial.print("INDEX = ");
 
@@ -643,26 +672,26 @@ void readRFIDs() //**************************************
 
     Serial.println("");
 
-  if(rfid_1.PICC_IsNewCardPresent() && proximityV < 20)
-
-  {
-    getCartridgeColor();
-    int a = getCartridgeColor();
-    Serial.print("a = ");
-    Serial.println(a);
-
-    Serial.println("RFID + OPTICAL DETECTED");
-
-    for (int i = 0; i < 11; i++)
+    if (rfid_1.PICC_IsNewCardPresent() && proximityV < 20)
 
     {
+      getCartridgeColor();
+      int a = getCartridgeColor();
+      Serial.print("a = ");
+      Serial.println(a);
 
-      if (a ==  colors[i])
+      Serial.println("RFID + OPTICAL DETECTED");
+
+      for (int i = 0; i < 11; i++)
 
       {
-        degreesOfColors[i] = pos;
+
+        if (a ==  colors[i])
+
+        {
+          degreesOfColors[i] = pos;
+        }
       }
     }
   }
-}
 }
