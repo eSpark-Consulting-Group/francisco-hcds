@@ -83,6 +83,10 @@ String SEND_STATUS_BLE;
 
 bool READY_FLAG = 0;
 
+int COUNTER = 0;
+
+int COUNTER_COMPLETE = 500;
+
 
 // See the following for generating UUIDs:
 
@@ -306,7 +310,7 @@ void setup() {  //**************************************************************
 
   pinMode(OPTICAL_PIN, INPUT);
 
-  /*  readRFIDs();
+/*    readRFIDs();
     Serial.println();
     Serial.println();
     Serial.println("Color Containers and their respective Angles");
@@ -351,13 +355,21 @@ void setup() {  //**************************************************************
 
 }
 
+unsigned long previousMillis = 0;
+const long interval = 1000;
+
 int str = 0;
 void loop() {  //*************************************************************************************************************************************
 
 
 
   // Serial.println("Start loop");
-
+  
+  if(COUNTER >= COUNTER_COMPLETE)
+  {
+    COUNTER = 0;
+    }
+  COUNTER++;
 
   //str = String(weight);
   str++;
@@ -365,16 +377,17 @@ void loop() {  //***************************************************************
   if (str > 300)
     str = 0;
 
-
-
+  
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+      previousMillis = currentMillis;
   if (deviceConnected) {
-
-    pTxCharacteristic->setValue((uint8_t*)&str, 4);
-
-    pTxCharacteristic->notify();
-
+ //   pTxCharacteristic->setValue((uint8_t*)&str, 4);
+ //   pTxCharacteristic->notify();
     if(READY_FLAG == 0)
     {
+      Serial.print("Time = ");
+      Serial.println(millis());
     SEND_STATUS_BLE = "";
     doc_out["STATUS"] = "r";
     serializeJson(doc_out, SEND_STATUS_BLE);
@@ -384,7 +397,7 @@ void loop() {  //***************************************************************
     pTxCharacteristic->notify();
 //    READY_FLAG = 1;
     }
-
+  }
   }
 
 
@@ -415,15 +428,15 @@ void loop() {  //***************************************************************
 
 
   //weight = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
-  Serial.print(weight, 1);
+ // Serial.print(weight, 1);
 
-  Serial.print(" gram(s)"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
+//  Serial.print(" gram(s)"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
 
   /*Serial.print(" calibration_factor: ");
 
     Serial.print(calibration_factor);*/
 
-  Serial.println();
+ // Serial.println();
 
 
   for (int i = 0; i < 11; i++)
@@ -448,11 +461,18 @@ void loop() {  //***************************************************************
       if (QUANTITY > 0 && QTY_AVAILABLE[i] >= QUANTITY && rfid_2.PICC_IsNewCardPresent())
 
       {
+        weight++;
+        Serial.print("Dispensed quantity = ");
+        Serial.print(weight);
+        delay(200);
         READY_FLAG = 1;
 
         Serial.println();
         //      Serial.println("Dispensing");
-
+        
+        currentMillis = millis();
+        if (currentMillis - previousMillis >= interval) {
+        previousMillis = currentMillis;
         SEND_STATUS_BLE = "";
         doc_out["STATUS"] = "d";
         serializeJson(doc_out, SEND_STATUS_BLE);
@@ -460,6 +480,7 @@ void loop() {  //***************************************************************
         Serial.println(SEND_STATUS_BLE);
         pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
         pTxCharacteristic->notify();
+        }
 
 
         if (weight < (0.8 * QUANTITY)) {
@@ -507,8 +528,11 @@ void loop() {  //***************************************************************
           QTY_AVAILABLE[i] = QTY_AVAILABLE[i] - QUANTITY;
           
 
-          if(QTY_AVAILABLE[i] < 20)
+          while(QTY_AVAILABLE[i] < 20)
           {
+            currentMillis = millis();
+            if (currentMillis - previousMillis >= interval) {
+            previousMillis = currentMillis;
             SEND_STATUS_BLE = "";
             doc_out["STATUS"] = "f";
             serializeJson(doc_out, SEND_STATUS_BLE);
@@ -516,9 +540,12 @@ void loop() {  //***************************************************************
             Serial.println(SEND_STATUS_BLE);
             pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
             pTxCharacteristic->notify();
+            }
+            
           }
 
           QUANTITY = 0;
+          weight = 0;
 
           Serial.println("Dispense Completed!");
 
