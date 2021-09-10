@@ -310,7 +310,7 @@ void setup() {  //**************************************************************
 
   pinMode(OPTICAL_PIN, INPUT);
 
-/*    readRFIDs();
+    readRFIDs();
     Serial.println();
     Serial.println();
     Serial.println("Color Containers and their respective Angles");
@@ -331,7 +331,7 @@ void setup() {  //**************************************************************
 
   SERVO.write(90);
 
-    doc_out["STATUS"] = "r";
+ /*   doc_out["STATUS"] = "r";
     serializeJson(doc_out, SEND_STATUS_BLE);
 
     Serial.println("JSON");
@@ -346,9 +346,9 @@ void setup() {  //**************************************************************
 
    pTxCharacteristic->setValue(SEND_STATUS.c_str());
 
-   pTxCharacteristic->notify();
+   pTxCharacteristic->notify();*/
 
-   delay(10000000);*/
+//   delay(10000000);
 
   Serial.println("End Setup");
 
