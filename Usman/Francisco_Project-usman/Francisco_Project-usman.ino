@@ -1,351 +1,724 @@
-#include <HX711_ADC.h>
+#include "HX711.h"
+
+#include <ArduinoJson.h>
+
+#include <MFRC522.h>
+
 #include <ESP32Servo.h>
+
+#include <BLEDevice.h>
+
+#include <BLEServer.h>
+
+#include <BLEUtils.h>
+
+#include <BLE2902.h>
+
 #if defined(ESP8266)|| defined(ESP32) || defined(AVR)
+
 #include <EEPROM.h>
+
 #endif
 
-//pins:
-const int HX711_dout = 26; //mcu > HX711 dout pin
-const int HX711_sck = 25; //mcu > HX711 sck pin
+#define SS_1_PIN 13
+
+#define RST_1_PIN 22
+
+#define SS_2_PIN 15
+
+#define RST_2_PIN 21
+
+#define DOUT  32
+
+#define CLK  33
+
+HX711 scale;
+
+float calibration_factor = 6100; //-7050 worked for my 440lb max scale setup
+
+BLEServer *pServer = NULL;
+
+BLECharacteristic * pTxCharacteristic;
 
 
-//HX711 constructor:
-HX711_ADC LoadCell(HX711_dout, HX711_sck);
-Servo myservo;
-Servo SERVO;
+bool deviceConnected = false;
 
+bool oldDeviceConnected = false;
 
-float pos = 0;    // variable to store the servo position
+String temp_CID = "";
+
+String threeBytes = "";
+
+String CIDS[11] = {"806", "733", "694", "123", "123", "123", "123", "793", "123", "123", "19b"};
+
+int colors[11] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}; // 11 Color types
+
+String color_names[11] = {"Red", "Yellow", "GREEN", "Pink", "Black", "Aqua", "Aero blue", "BLUE", "Magenta", "GOLD", "LIGHTENER"};
+
+int degreesOfColors[11] = {};
+
+int pos = 0;    // variable to store the servo position
+
 // Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33
-const int servoPin = 2;
-const int OPTICAL_PIN = 3;
-const int SERVO_PIN = 4;
 
-int OPTICAL_VALUE;
-int OPTICAL_DURATION;
-int OPTICAL_THRESHOLD = 2000;
-int INDEX_ARRAY[360][2];
-int STRING_ARRAY[360];
+const int OPTICAL_PIN = 34;
+
+int proximityADC;
+
+float proximityV;
+
 int INDEX = 0;
 
-float QTY_AVAILABLE = 100;
+float QTY_AVAILABLE[11] = {100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
+
 float QUANTITY = 0;
 
-const int calVal_eepromAdress = 0;
-unsigned long t = 0;
+String COLOR;
 
-void setup() {
+String QTY;
 
-  pinMode(0, INPUT_PULLUP);
-  Serial.begin(115200); delay(10);
-  Serial.println();
-  Serial.println("Starting...");
+String SEND_STATUS;
 
-  LoadCell.begin();
-  float calibrationValue; // calibration value (see example file "Calibration.ino")
-  calibrationValue = 696.0; // uncomment this if you want to set the calibration value in the sketch
-#if defined(ESP8266)|| defined(ESP32)
-  EEPROM.begin(512); // uncomment this if you use ESP8266/ESP32 and want to fetch the calibration value from eeprom
-#endif
-  EEPROM.get(calVal_eepromAdress, calibrationValue); // uncomment this if you want to fetch the calibration value from eeprom
+String SEND_STATUS_BLE;
 
-  unsigned long stabilizingtime = 2000; // preciscion right after power-up can be improved by adding a few seconds of stabilizing time
-  boolean _tare = true; //set this to false if you don't want tare to be performed in the next step
-  LoadCell.start(stabilizingtime, _tare);
-  if (LoadCell.getTareTimeoutFlag() || LoadCell.getSignalTimeoutFlag()) {
-    Serial.println("Timeout, check MCU>HX711 wiring and pin designations");
-    while (1);
-  }
-  else {
-    LoadCell.setCalFactor(calibrationValue); // set calibration value (float)
-    Serial.println("Startup is complete");
-  }
-  // Allow allocation of all timers
-  ESP32PWM::allocateTimer(0);
-  ESP32PWM::allocateTimer(1);
-  ESP32PWM::allocateTimer(2);
-  ESP32PWM::allocateTimer(3);
-  myservo.setPeriodHertz(50);    // standard 50 hz servo
-  myservo.attach(servoPin, 600, 2300); // attaches the servo on pin 2 to the servo object
-  // using default min/max of 1000us and 2000us
-  // different servos may require different min/max settings
-  // for an accurate 0 to 180 sweep
+bool READY_FLAG = 0;
 
-  myservo.attach(servoPin);
-  SERVO.attach(SERVO_PIN);
-  myservo.write(0);
-  SERVO.write(0);
-  delay(3000);
+int COUNTER = 0;
 
-  for (INDEX = 0; INDEX <= 360; INDEX++) {
-    OPTICAL_DURATION = 0;
-    pinMode(OPTICAL_PIN, OUTPUT);
-    digitalWrite(OPTICAL_PIN, HIGH);
-    delay(1);
-    pinMode(OPTICAL_PIN, INPUT);
-    digitalWrite(OPTICAL_PIN, LOW);
-    while (digitalRead(OPTICAL_PIN)) {
-      OPTICAL_DURATION++;
+int COUNTER_COMPLETE = 500;
+
+
+// See the following for generating UUIDs:
+
+// https://www.uuidgenerator.net/
+
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E" // UART service UUID
+
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+
+StaticJsonDocument<200> doc_in;
+StaticJsonDocument<200> doc_out;
+
+class MyServerCallbacks: public BLEServerCallbacks {
+
+    void onConnect(BLEServer* pServer) {
+
+      deviceConnected = true;
+
+    };
+
+    void onDisconnect(BLEServer* pServer) {
+
+      deviceConnected = false;
+
     }
-    OPTICAL_VALUE = (OPTICAL_DURATION > OPTICAL_THRESHOLD);
 
+};
 
-    pos = INDEX / 2;
-    INDEX_ARRAY[INDEX][0] = pos; // Stores Angle of Servo
-    INDEX_ARRAY[INDEX][1] = OPTICAL_VALUE;
-    STRING_ARRAY[INDEX] = 0;  // RFID READING TO BE SAVED HERE
+class MyCallbacks: public BLECharacteristicCallbacks {
 
-    Serial.println(INDEX);
-    Serial.println(INDEX_ARRAY[INDEX][0]);
-    Serial.println(INDEX_ARRAY[INDEX][1]);
-    Serial.println(STRING_ARRAY[INDEX]);
-    Serial.println("");
+    void onWrite(BLECharacteristic *pCharacteristic) {
 
-    myservo.write(pos);
-    delay(100);
-  }
-}
+      std::string rxValue = pCharacteristic->getValue();
 
-void loop() {
+      if (rxValue.length() > 0) {
 
+        Serial.println("*********");
 
-  //  ***********************************READ LOAD CELL*******************************************
-  if (digitalRead(0) == 1)
-  {
+        Serial.print("Received Value: ");
 
+        String s;
 
-     QUANTITY = 20;
+        for (int i = 0; i < rxValue.length(); i++) {
 
+          Serial.print(rxValue[i]);
 
+          s += rxValue[i];
 
-    static boolean newDataReady = 0;
-    const int serialPrintInterval = 0; //increase value to slow down serial print activity
-
-    // check for new data/start next conversion:
-    if (LoadCell.update()) newDataReady = true;
-
-    // get smoothed value from the dataset:
-    if (newDataReady) {
-      if (millis() > t + serialPrintInterval) {
-        float i = LoadCell.getData();
-        Serial.print("Load_cell output val: ");
-        i = ( i > 0 ? i : 0 ) ;
-        Serial.println(i);
-
-        if(QTY_AVAILABLE > QUANTITY)
-        {
-          if (i < (0.8 * QUANTITY)) {
-            SERVO.write(30);
-            delay(10);
-          }
-          else if (i >= (0.8*QUANTITY)  && (i < QUANTITY)) {
-            SERVO.write(30);
-            delay(2000);
-            SERVO.write(0);
-            delay(2000);
-          }
-          else if (i >= QUANTITY) {
-            
-            QTY_AVAILABLE = QTY_AVAILABLE - QUANTITY;
-            QUANTITY = 0;
-            Serial.println("Dispense Completed!");
-          }
         }
 
-        newDataReady = 0;
-        t = millis();
+        
+        deserializeJson(doc_in, s);
+        const char* C_COLOR = doc_in["COLOR"];
+        COLOR = String(C_COLOR);
+        QUANTITY = doc_in["QUANTITY"];
+
+   /*     byte x = s.indexOf(',');
+
+        COLOR = s.substring(0, x);
+
+        QTY = s.substring(x + 1, sizeof(s) - 1);
+
+        QUANTITY = QTY.toFloat();*/
+
+        Serial.println("");
+
+        Serial.println("");
+
+        Serial.print("COLOR : ");
+
+        Serial.println(COLOR);
+
+        Serial.print("QUANTITY : ");
+
+        Serial.println(QUANTITY);
+
+        Serial.println("");
+
+        Serial.println("");
+
+
       }
+
     }
 
-    // receive command from serial terminal, send 't' to initiate tare operation:
-    if (Serial.available() > 0) {
-      char inByte = Serial.read();
-      if (inByte == 't') LoadCell.tareNoDelay();
+};
+
+
+const int SERVO_PIN = 27;
+
+const int SERVO_2_PIN = 5;
+
+Servo SERVO;
+
+Servo SERVO_2;
+
+MFRC522 rfid_1(SS_1_PIN, RST_1_PIN);
+
+MFRC522 rfid_2(SS_2_PIN, RST_2_PIN);
+
+const int calVal_eepromAdress = 0;
+
+unsigned long t = 0;
+
+float weight = 0;
+
+bool flag_1 = 0;
+
+void setup() {  //**************************************************************************************************************
+
+
+  pinMode(14, OUTPUT);
+
+  digitalWrite(14, HIGH);
+
+  pinMode(35, OUTPUT);
+
+  digitalWrite(35, LOW);
+
+  Serial.begin(57600); delay(10);
+
+  SPI.begin();
+
+  Serial.println("HX711 calibration sketch");
+
+  Serial.println("Remove all weight from scale");
+
+  Serial.println("After readings begin, place known weight on scale");
+
+  Serial.println("Press + or a to increase calibration factor");
+
+  Serial.println("Press - or z to decrease calibration factor");
+
+  scale.begin(DOUT, CLK);
+
+  //  scale.set_scale();
+
+  Serial.println("Test");
+
+  //  scale.tare();  //Reset the scale to 0
+
+  Serial.println("Test 2");
+
+  //  long zero_factor = scale.read_average(); //Get a baseline reading
+
+  //long zero_factor = scale.read_average(); //Get a baseline reading
+
+
+  Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
+
+  //  Serial.println(zero_factor);
+
+  //  scale.set_scale(calibration_factor); //Adjust to this calibration factor
+
+  //scale.set_scale(calibration_factor); //Adjust to this calibration factor
+
+
+  // Create the BLE Device
+
+  BLEDevice::init("FRANCISCO BLE TEST");
+
+  // Create the BLE Server
+
+  pServer = BLEDevice::createServer();
+
+  pServer->setCallbacks(new MyServerCallbacks());
+
+
+
+  // Create the BLE Service
+
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+
+
+  // Create a BLE Characteristic
+
+  pTxCharacteristic = pService->createCharacteristic(
+
+                        CHARACTERISTIC_UUID_TX,
+
+                        BLECharacteristic::PROPERTY_NOTIFY
+
+                      );
+
+  pTxCharacteristic->addDescriptor(new BLE2902());
+
+  BLECharacteristic * pRxCharacteristic = pService->createCharacteristic(
+
+      CHARACTERISTIC_UUID_RX,
+
+      BLECharacteristic::PROPERTY_WRITE
+
+                                          );
+
+  pRxCharacteristic->setCallbacks(new MyCallbacks());
+
+  // Start the service
+
+  pService->start();
+
+  // Start advertising
+
+  pServer->getAdvertising()->start();
+
+  Serial.println("Waiting a client connection to notify...");
+
+  rfid_1.PCD_Init();
+
+  rfid_2.PCD_Init();
+
+  SERVO.attach(SERVO_PIN, 600, 2300);
+
+  SERVO.write(0);
+
+  SERVO_2.attach(SERVO_2_PIN, 600, 2300);
+
+  SERVO_2.write(0);
+
+  pinMode(OPTICAL_PIN, INPUT);
+
+    readRFIDs();
+    Serial.println();
+    Serial.println();
+    Serial.println("Color Containers and their respective Angles");
+    Serial.println();
+
+    Serial.print("Color Name");
+    Serial.print("   ");
+    Serial.println("Container Angle");
+
+    for(int i=0; i<11; i++)
+    {
+    Serial.println(color_names[i]);
+    Serial.println(degreesOfColors[i]);
+    Serial.println();
     }
 
-    // check if last tare operation is complete:
-    if (LoadCell.getTareStatus() == true) {
-      Serial.println("Tare complete");
-    }
+    delay(5000);
 
-  }
+  SERVO.write(90);
 
-  //*************************************LOAD CELL CALIBRATION********************************************
+ /*   doc_out["STATUS"] = "r";
+    serializeJson(doc_out, SEND_STATUS_BLE);
 
-  else if (digitalRead(0) == 0)
+    Serial.println("JSON");
+    Serial.println(SEND_STATUS_BLE);
+
+    pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
+
+    pTxCharacteristic->notify();
+
+
+   SEND_STATUS = "{\"STATUS\":\"r\"}";
+
+   pTxCharacteristic->setValue(SEND_STATUS.c_str());
+
+   pTxCharacteristic->notify();*/
+
+//   delay(10000000);
+
+  Serial.println("End Setup");
+
+
+}
+
+unsigned long previousMillis = 0;
+const long interval = 1000;
+
+int str = 0;
+void loop() {  //*************************************************************************************************************************************
+
+
+
+  // Serial.println("Start loop");
+  
+  if(COUNTER >= COUNTER_COMPLETE)
   {
+    COUNTER = 0;
+    }
+  COUNTER++;
+
+  //str = String(weight);
+  str++;
+
+  if (str > 300)
+    str = 0;
+
+  
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+      previousMillis = currentMillis;
+  if (deviceConnected) {
+ //   pTxCharacteristic->setValue((uint8_t*)&str, 4);
+ //   pTxCharacteristic->notify();
+    if(READY_FLAG == 0)
+    {
+      Serial.print("Time = ");
+      Serial.println(millis());
+    SEND_STATUS_BLE = "";
+    doc_out["STATUS"] = "r";
+    serializeJson(doc_out, SEND_STATUS_BLE);
+    Serial.println("JSON");
+    Serial.println(SEND_STATUS_BLE);
+    pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
+    pTxCharacteristic->notify();
+//    READY_FLAG = 1;
+    }
+  }
+  }
+
+
+
+  // disconnecting
+
+  if (!deviceConnected && oldDeviceConnected) {
+
+    delay(10); // give the bluetooth stack the chance to get things ready
+
+    pServer->startAdvertising(); // restart advertising
+
+    Serial.println("start advertising");
+
+    oldDeviceConnected = deviceConnected;
+
+  }
+
+  // connecting
+
+  if (deviceConnected && !oldDeviceConnected) {
+
+    // do stuff here on connecting
+
+    oldDeviceConnected = deviceConnected;
+
+  }
+
+
+  //weight = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
+ // Serial.print(weight, 1);
+
+//  Serial.print(" gram(s)"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
+
+  /*Serial.print(" calibration_factor: ");
+
+    Serial.print(calibration_factor);*/
+
+ // Serial.println();
+
+
+  for (int i = 0; i < 11; i++)
+
+  {
+    if (COLOR == color_names[i])
+
+    {
+      if (flag_1 == 0)
+      {
+
+        SERVO.write(degreesOfColors[i]);
+
+        Serial.println("Servo adjustment");
+
+        delay(3000);
+
+        flag_1 = 1;
+
+      }
+
+      if (QUANTITY > 0 && QTY_AVAILABLE[i] >= QUANTITY && rfid_2.PICC_IsNewCardPresent())
+
+      {
+        weight++;
+        Serial.print("Dispensed quantity = ");
+        Serial.print(weight);
+        delay(200);
+        READY_FLAG = 1;
+
+        Serial.println();
+        //      Serial.println("Dispensing");
+        
+        currentMillis = millis();
+        if (currentMillis - previousMillis >= interval) {
+        previousMillis = currentMillis;
+        SEND_STATUS_BLE = "";
+        doc_out["STATUS"] = "d";
+        serializeJson(doc_out, SEND_STATUS_BLE);
+        Serial.println("JSON");
+        Serial.println(SEND_STATUS_BLE);
+        pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
+        pTxCharacteristic->notify();
+        }
+
+
+        if (weight < (0.8 * QUANTITY)) {
+
+          Serial.print("Dispense : ");
+
+          Serial.println("< 80%");
+
+          SERVO_2.write(30);
+
+        }
+
+        else if (weight >= (0.8 * QUANTITY)  && (weight < QUANTITY)) {
+
+          Serial.print("Dispense : ");
+
+          Serial.println(">= 80%");
+
+          SERVO_2.write(30);
+
+          delay(100);
+
+          SERVO_2.write(0);
+
+          delay(500);
+
+        }
+
+        else if (weight >= QUANTITY) {
+
+          SERVO_2.write(0);
+
+          COLOR = "";
+
+          flag_1 = 0;
+
+          READY_FLAG = 0;
+
+          Serial.println();
+
+          Serial.print("Dispense : ");
+
+          Serial.println("100%");
+
+          QTY_AVAILABLE[i] = QTY_AVAILABLE[i] - QUANTITY;
+          
+
+          while(QTY_AVAILABLE[i] < 20)
+          {
+            currentMillis = millis();
+            if (currentMillis - previousMillis >= interval) {
+            previousMillis = currentMillis;
+            SEND_STATUS_BLE = "";
+            doc_out["STATUS"] = "f";
+            serializeJson(doc_out, SEND_STATUS_BLE);
+            Serial.println("JSON");
+            Serial.println(SEND_STATUS_BLE);
+            pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
+            pTxCharacteristic->notify();
+            }
+            
+          }
+
+          QUANTITY = 0;
+          weight = 0;
+
+          Serial.println("Dispense Completed!");
+
+          Serial.print("Quantity Available = ");
+
+          Serial.println(QTY_AVAILABLE[i]);
+
+          Serial.println();
+
+          delay(10000);
+
+        }
+
+        else  {}
+
+        //Serial.println("if condition");
+
+      }
+
+    }
+
+  }
+
+}
+
+int getCartridgeColor() //*************************************
+
+{
+
+  Serial.println("In getCartridgeColor Function");
+
+  String threeBytes = "";
+
+  String colorName = "";
+
+  int color_r = 0;
+
+  if ( ! rfid_1.PICC_IsNewCardPresent()) {
+
+    Serial.println("IsNewcCardPresent");
+
+    return 0;
+
+  }
+
+
+  // Select one of the cards
+
+  if ( ! rfid_1.PICC_ReadCardSerial()) {
+
+    Serial.println("ReadCardSerial");
+
+    return 0;
+
+  }
+
+  rfid_1.PICC_DumpToSerial(&(rfid_1.uid));
+
+  Serial.println("UID");
+
+  temp_CID = "";
+
+
+  for (byte i = 0; i < rfid_1.uid.size; i++) {
+
+    if (rfid_1.uid.uidByte[i] < 0x10)
+
+      //Serial.print(F("0"));
+
+      temp_CID += "0";
+
+    else
+
+      //Serial.print(F(""));
+
+      temp_CID += "";
+
+    //Serial.print(rfid_1.uid.uidByte[(rfid_1.uid.size - 1) - i], HEX);
+
+    temp_CID += String(rfid_1.uid.uidByte[i], HEX);
+
+  }
+
+  threeBytes = temp_CID.substring(0, 3);
+
+  // Search Color
+
+  for (int i = 0; i < 11; i++)
+
+  {
+
+    if (threeBytes == CIDS[i])
+
+    {
+
+      color_r = colors[i];
+
+      colorName = color_names[i];
+
+    }
+
+  }
+
+  Serial.println(temp_CID);
+
+  Serial.println(threeBytes);
+
+  Serial.println(color_r);
+
+  Serial.println(colorName);
+
+  Serial.println("End getCartridge Fucntion");
+
+  return color_r;
+
+}
+
+void readRFIDs() //**************************************
+
+{
+
+  Serial.println("In readRFIDs Function");
+
+  for (INDEX = 0; INDEX < 360; INDEX++) {
+
+    pos = INDEX / 2;
+
+    SERVO.write(pos);
+
+    delay(20);
+
+    // Read in the ADC and convert it to a voltage:
+
+    proximityADC = analogRead(OPTICAL_PIN);
+
+    proximityV = (float)proximityADC * 5.0 / 1023.0;
+
+    //  delay(100);
+
+    Serial.print("INDEX = ");
+
+    Serial.println(INDEX);
+
+    Serial.print("Servo position = ");
+
+    Serial.println(pos);
+
+    Serial.print("OPTICAL_VALUE = ");
+
+    Serial.println(proximityV);
+
     Serial.println("");
-    Serial.println("Load cell Setup Mode");
-    delay(2000);
 
-    while (!LoadCell.update());
-    calibrate(); //start calibration procedure
+    if (rfid_1.PICC_IsNewCardPresent() && proximityV < 20)
 
-    static boolean newDataReady = 0;
-    const int serialPrintInterval = 0; //increase value to slow down serial print activity
+    {
+      getCartridgeColor();
+      int a = getCartridgeColor();
+      Serial.print("a = ");
+      Serial.println(a);
 
-    // check for new data/start next conversion:
-    if (LoadCell.update()) newDataReady = true;
+      Serial.println("RFID + OPTICAL DETECTED");
 
-    // get smoothed value from the dataset:
-    if (newDataReady) {
-      if (millis() > t + serialPrintInterval) {
-        float i = LoadCell.getData();
-        Serial.print("Load_cell output val: ");
-        Serial.println(i);
-        newDataReady = 0;
-        t = millis();
-      }
-    }
+      for (int i = 0; i < 11; i++)
 
-    // receive command from serial terminal
-    if (Serial.available() > 0) {
-      char inByte = Serial.read();
-      if (inByte == 't') LoadCell.tareNoDelay(); //tare
-      else if (inByte == 'r') calibrate(); //calibrate
-      else if (inByte == 'c') changeSavedCalFactor(); //edit calibration value manually
-    }
+      {
 
-    // check if last tare operation is complete
-    if (LoadCell.getTareStatus() == true) {
-      Serial.println("Tare complete");
-    }
-  }
+        if (a ==  colors[i])
 
-  //*******************************END LOAD CELL CALIBRATION******************************************************
-
-}
-
-void calibrate() {
-  Serial.println("***");
-  Serial.println("Start calibration:");
-  Serial.println("Place the load cell an a level stable surface.");
-  Serial.println("Remove any load applied to the load cell.");
-  Serial.println("Send 't' from serial monitor to set the tare offset.");
-
-  boolean _resume = false;
-  while (_resume == false) {
-    LoadCell.update();
-    if (Serial.available() > 0) {
-      if (Serial.available() > 0) {
-        char inByte = Serial.read();
-        if (inByte == 't') LoadCell.tareNoDelay();
-      }
-    }
-    if (LoadCell.getTareStatus() == true) {
-      Serial.println("Tare complete");
-      _resume = true;
-    }
-  }
-
-  Serial.println("Now, place your known mass on the loadcell.");
-  Serial.println("Then send the weight of this mass (i.e. 100.0) from serial monitor.");
-
-  float known_mass = 0;
-  _resume = false;
-  while (_resume == false) {
-    LoadCell.update();
-    if (Serial.available() > 0) {
-      known_mass = Serial.parseFloat();
-      if (known_mass != 0) {
-        Serial.print("Known mass is: ");
-        Serial.println(known_mass);
-        _resume = true;
+        {
+          degreesOfColors[i] = pos;
+        }
       }
     }
   }
-
-  LoadCell.refreshDataSet(); //refresh the dataset to be sure that the known mass is measured correct
-  float newCalibrationValue = LoadCell.getNewCalibration(known_mass); //get the new calibration value
-
-  Serial.print("New calibration value has been set to: ");
-  Serial.print(newCalibrationValue);
-  Serial.println(", use this as calibration value (calFactor) in your project sketch.");
-  Serial.print("Save this value to EEPROM adress ");
-  Serial.print(calVal_eepromAdress);
-  Serial.println("? y/n");
-
-  _resume = false;
-  while (_resume == false) {
-    if (Serial.available() > 0) {
-      char inByte = Serial.read();
-      if (inByte == 'y') {
-#if defined(ESP8266)|| defined(ESP32)
-        EEPROM.begin(512);
-#endif
-        EEPROM.put(calVal_eepromAdress, newCalibrationValue);
-#if defined(ESP8266)|| defined(ESP32)
-        EEPROM.commit();
-#endif
-        EEPROM.get(calVal_eepromAdress, newCalibrationValue);
-        Serial.print("Value ");
-        Serial.print(newCalibrationValue);
-        Serial.print(" saved to EEPROM address: ");
-        Serial.println(calVal_eepromAdress);
-        _resume = true;
-
-      }
-      else if (inByte == 'n') {
-        Serial.println("Value not saved to EEPROM");
-        _resume = true;
-      }
-    }
-  }
-
-  Serial.println("End calibration");
-  Serial.println("***");
-  Serial.println("To re-calibrate, send 'r' from serial monitor.");
-  Serial.println("For manual edit of the calibration value, send 'c' from serial monitor.");
-  Serial.println("***");
-}
-
-void changeSavedCalFactor() {
-  float oldCalibrationValue = LoadCell.getCalFactor();
-  boolean _resume = false;
-  Serial.println("***");
-  Serial.print("Current value is: ");
-  Serial.println(oldCalibrationValue);
-  Serial.println("Now, send the new value from serial monitor, i.e. 696.0");
-  float newCalibrationValue;
-  while (_resume == false) {
-    if (Serial.available() > 0) {
-      newCalibrationValue = Serial.parseFloat();
-      if (newCalibrationValue != 0) {
-        Serial.print("New calibration value is: ");
-        Serial.println(newCalibrationValue);
-        LoadCell.setCalFactor(newCalibrationValue);
-        _resume = true;
-      }
-    }
-  }
-  _resume = false;
-  Serial.print("Save this value to EEPROM adress ");
-  Serial.print(calVal_eepromAdress);
-  Serial.println("? y/n");
-  while (_resume == false) {
-    if (Serial.available() > 0) {
-      char inByte = Serial.read();
-      if (inByte == 'y') {
-#if defined(ESP8266)|| defined(ESP32)
-        EEPROM.begin(512);
-#endif
-        EEPROM.put(calVal_eepromAdress, newCalibrationValue);
-#if defined(ESP8266)|| defined(ESP32)
-        EEPROM.commit();
-#endif
-        EEPROM.get(calVal_eepromAdress, newCalibrationValue);
-        Serial.print("Value ");
-        Serial.print(newCalibrationValue);
-        Serial.print(" saved to EEPROM address: ");
-        Serial.println(calVal_eepromAdress);
-        _resume = true;
-      }
-      else if (inByte == 'n') {
-        Serial.println("Value not saved to EEPROM");
-        _resume = true;
-      }
-    }
-  }
-  Serial.println("End change calibration value");
-  Serial.println("***");
 }

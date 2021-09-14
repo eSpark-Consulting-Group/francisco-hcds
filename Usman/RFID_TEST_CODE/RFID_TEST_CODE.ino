@@ -1,7 +1,7 @@
 #include <SPI.h>
 #include <MFRC522.h>
 
-#define SS_PIN 21
+#define SS_PIN 13
 #define RST_PIN 22 
 
  
@@ -36,7 +36,7 @@ void loop() {
   if ( ! rfid.PICC_ReadCardSerial())
     return;
 
-  if (rfid.uid.uidByte[0] == 0x79 &&  // For color 1
+  if (rfid.uid.uidByte[0] == 0x79 && 
     rfid.uid.uidByte[1] == 0x3F && 
     rfid.uid.uidByte[2] == 0x62 && 
     rfid.uid.uidByte[3] == 0xA3 ) {
@@ -49,7 +49,7 @@ void loop() {
     Serial.println();*/
   }
 
-  else if (rfid.uid.uidByte[0] == 0x69 &&   // For color 2
+  else if (rfid.uid.uidByte[0] == 0x69 && 
     rfid.uid.uidByte[1] == 0x43 && 
     rfid.uid.uidByte[2] == 0x15 && 
     rfid.uid.uidByte[3] == 0xC9 ) {

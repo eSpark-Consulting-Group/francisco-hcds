@@ -91,7 +91,7 @@ void setup() {
                       BLECharacteristic::PROPERTY_WRITE
                     );
 
-  pRxCharacteristic->setCallbacks(new MyCallbacks());
+  pRxCharacteristic->setCallbacks(new MyCallbacks());   //
 
   // Start the service
   pService->start();
