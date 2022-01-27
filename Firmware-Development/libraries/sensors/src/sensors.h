@@ -12,6 +12,8 @@
 #define DOUT_HX711  32
 #define CLK_HX711  33
 
+uint8_t GAIN;
+
 extern "C"
 {
 	// Public functions
@@ -20,4 +22,9 @@ extern "C"
 	uint8_t initHX711(uint32_t DOUT = DOUT_HX711, uint32_t CLK = CLK_HX711);
 	uint8_t getValue(double* value);
 	uint8_t tare(uint8_t times);
+	
+	// Private functions
+	
+	// HX711 functions
+	static void setGain(uint8_t gain);
 }

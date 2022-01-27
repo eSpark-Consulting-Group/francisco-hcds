@@ -13,6 +13,9 @@ extern "C"
 	 
 	uint8_t initHX711(uint32_t DOUT, uint32_t CLK)
 	{
+		
+		
+		return SUCCESS;
 	}
 	
 	/*********************************************************************************
@@ -25,6 +28,7 @@ extern "C"
 	 
 	uint8_t getValue(double* value)
 	{
+		return SUCCESS;
 	}
 	
 	/*********************************************************************************
@@ -37,5 +41,6 @@ extern "C"
 	 
 	uint8_t tare(uint8_t times)
 	{
+		return SUCCESS;
 	}
 }
