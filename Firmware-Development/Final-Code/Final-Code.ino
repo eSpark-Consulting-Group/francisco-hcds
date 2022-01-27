@@ -139,19 +139,19 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 
         }
 
-        
+
         deserializeJson(doc_in, s);
         const char* C_COLOR = doc_in["COLOR"];
         COLOR = String(C_COLOR);
         QUANTITY = doc_in["QUANTITY"];
 
-   /*     byte x = s.indexOf(',');
+        /*     byte x = s.indexOf(',');
 
-        COLOR = s.substring(0, x);
+             COLOR = s.substring(0, x);
 
-        QTY = s.substring(x + 1, sizeof(s) - 1);
+             QTY = s.substring(x + 1, sizeof(s) - 1);
 
-        QUANTITY = QTY.toFloat();*/
+             QUANTITY = QTY.toFloat();*/
 
         Serial.println("");
 
@@ -310,45 +310,45 @@ void setup() {  //**************************************************************
 
   pinMode(OPTICAL_PIN, INPUT);
 
-    readRFIDs();
-    Serial.println();
-    Serial.println();
-    Serial.println("Color Containers and their respective Angles");
-    Serial.println();
+  readRFIDs();
+  Serial.println();
+  Serial.println();
+  Serial.println("Color Containers and their respective Angles");
+  Serial.println();
 
-    Serial.print("Color Name");
-    Serial.print("   ");
-    Serial.println("Container Angle");
+  Serial.print("Color Name");
+  Serial.print("   ");
+  Serial.println("Container Angle");
 
-    for(int i=0; i<11; i++)
-    {
+  for (int i = 0; i < 11; i++)
+  {
     Serial.println(color_names[i]);
     Serial.println(degreesOfColors[i]);
     Serial.println();
-    }
+  }
 
-    delay(5000);
+  delay(5000);
 
   SERVO.write(90);
 
- /*   doc_out["STATUS"] = "r";
-    serializeJson(doc_out, SEND_STATUS_BLE);
+  /*   doc_out["STATUS"] = "r";
+     serializeJson(doc_out, SEND_STATUS_BLE);
 
-    Serial.println("JSON");
-    Serial.println(SEND_STATUS_BLE);
+     Serial.println("JSON");
+     Serial.println(SEND_STATUS_BLE);
 
-    pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
+     pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
 
-    pTxCharacteristic->notify();
+     pTxCharacteristic->notify();
 
 
-   SEND_STATUS = "{\"STATUS\":\"r\"}";
+    SEND_STATUS = "{\"STATUS\":\"r\"}";
 
-   pTxCharacteristic->setValue(SEND_STATUS.c_str());
+    pTxCharacteristic->setValue(SEND_STATUS.c_str());
 
-   pTxCharacteristic->notify();*/
+    pTxCharacteristic->notify();*/
 
-//   delay(10000000);
+  //   delay(10000000);
 
   Serial.println("End Setup");
 
@@ -364,11 +364,11 @@ void loop() {  //***************************************************************
 
 
   // Serial.println("Start loop");
-  
-  if(COUNTER >= COUNTER_COMPLETE)
+
+  if (COUNTER >= COUNTER_COMPLETE)
   {
     COUNTER = 0;
-    }
+  }
   COUNTER++;
 
   //str = String(weight);
@@ -377,27 +377,27 @@ void loop() {  //***************************************************************
   if (str > 300)
     str = 0;
 
-  
+
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
-      previousMillis = currentMillis;
-  if (deviceConnected) {
- //   pTxCharacteristic->setValue((uint8_t*)&str, 4);
- //   pTxCharacteristic->notify();
-    if(READY_FLAG == 0)
-    {
-      Serial.print("Time = ");
-      Serial.println(millis());
-    SEND_STATUS_BLE = "";
-    doc_out["STATUS"] = "r";
-    serializeJson(doc_out, SEND_STATUS_BLE);
-    Serial.println("JSON");
-    Serial.println(SEND_STATUS_BLE);
-    pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
-    pTxCharacteristic->notify();
-//    READY_FLAG = 1;
+    previousMillis = currentMillis;
+    if (deviceConnected) {
+      //   pTxCharacteristic->setValue((uint8_t*)&str, 4);
+      //   pTxCharacteristic->notify();
+      if (READY_FLAG == 0)
+      {
+        Serial.print("Time = ");
+        Serial.println(millis());
+        SEND_STATUS_BLE = "";
+        doc_out["STATUS"] = "r";
+        serializeJson(doc_out, SEND_STATUS_BLE);
+        Serial.println("JSON");
+        Serial.println(SEND_STATUS_BLE);
+        pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
+        pTxCharacteristic->notify();
+        //    READY_FLAG = 1;
+      }
     }
-  }
   }
 
 
@@ -428,15 +428,15 @@ void loop() {  //***************************************************************
 
 
   //weight = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
- // Serial.print(weight, 1);
+  // Serial.print(weight, 1);
 
-//  Serial.print(" gram(s)"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
+  //  Serial.print(" gram(s)"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
 
   /*Serial.print(" calibration_factor: ");
 
     Serial.print(calibration_factor);*/
 
- // Serial.println();
+  // Serial.println();
 
 
   for (int i = 0; i < 11; i++)
@@ -469,17 +469,17 @@ void loop() {  //***************************************************************
 
         Serial.println();
         //      Serial.println("Dispensing");
-        
+
         currentMillis = millis();
         if (currentMillis - previousMillis >= interval) {
-        previousMillis = currentMillis;
-        SEND_STATUS_BLE = "";
-        doc_out["STATUS"] = "d";
-        serializeJson(doc_out, SEND_STATUS_BLE);
-        Serial.println("JSON");
-        Serial.println(SEND_STATUS_BLE);
-        pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
-        pTxCharacteristic->notify();
+          previousMillis = currentMillis;
+          SEND_STATUS_BLE = "";
+          doc_out["STATUS"] = "d";
+          serializeJson(doc_out, SEND_STATUS_BLE);
+          Serial.println("JSON");
+          Serial.println(SEND_STATUS_BLE);
+          pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
+          pTxCharacteristic->notify();
         }
 
 
@@ -526,22 +526,22 @@ void loop() {  //***************************************************************
           Serial.println("100%");
 
           QTY_AVAILABLE[i] = QTY_AVAILABLE[i] - QUANTITY;
-          
 
-          while(QTY_AVAILABLE[i] < 20)
+
+          while (QTY_AVAILABLE[i] < 20)
           {
             currentMillis = millis();
             if (currentMillis - previousMillis >= interval) {
-            previousMillis = currentMillis;
-            SEND_STATUS_BLE = "";
-            doc_out["STATUS"] = "f";
-            serializeJson(doc_out, SEND_STATUS_BLE);
-            Serial.println("JSON");
-            Serial.println(SEND_STATUS_BLE);
-            pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
-            pTxCharacteristic->notify();
+              previousMillis = currentMillis;
+              SEND_STATUS_BLE = "";
+              doc_out["STATUS"] = "f";
+              serializeJson(doc_out, SEND_STATUS_BLE);
+              Serial.println("JSON");
+              Serial.println(SEND_STATUS_BLE);
+              pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
+              pTxCharacteristic->notify();
             }
-            
+
           }
 
           QUANTITY = 0;
