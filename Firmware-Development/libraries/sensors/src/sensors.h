@@ -249,7 +249,8 @@ extern "C"
 	// Cartridge functions
 	uint8_t processCartridges(cartridges_t* cartridge);
 	uint8_t isTrayPlaced();
-	uint8_t moveToCartridge(cartridges_t* cartridge, int color_id);
+	uint8_t moveToCartridge(colors color_id);
+	uint8_t dispenseColor(int quantity);
 	
 	// Private functions
 	
@@ -291,5 +292,5 @@ extern "C"
 	static StatusCode MIFARE_Read(uint8_t blockAddr, uint8_t *buffer, uint8_t *bufferSize);
 	static StatusCode PCD_Authenticate(uint8_t command, uint8_t blockAddr, MIFARE_Key *key, Uid *uid);
 	static void PCD_StopCrypto1();
-	static StatusCode PICC_Select(Uid *uid, uint8_t  = 0);
+	static StatusCode PICC_Select(Uid *uid, uint8_t validBits = 0);
 }

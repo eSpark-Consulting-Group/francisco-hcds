@@ -1,7 +1,5 @@
 #include "sensors.h"
 
-#define RED 1
-
 float grams;
 cartridges_t cartridge;
 
@@ -13,10 +11,16 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+
+  // Color will be selected with App
+  moveToCartridge(RED);
+  
   if(isTrayPlaced())
   {
     Serial.println("Tray is present");
-    moveToCartridge(&cartridge, RED);
+
+    //Dispense specified color
+    dispenseColor(10);
   }
   delay(1000);
 }

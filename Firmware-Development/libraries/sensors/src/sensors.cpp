@@ -229,9 +229,23 @@ extern "C"
 	 *	@return: status, SUCCESS or FAILED
 	 *********************************************************************************/
 	
-	uint8_t moveToCartridge(cartridges_t* cartridge, int color_id)
+	uint8_t moveToCartridge(colors color_id)
 	{
-		
+		return SUCCESS;
+	}
+	
+	/*********************************************************************************
+	 *	@purpose: dispense specified color of quantity
+	 *	
+	 *	@color: color of colors enum type
+	 *	@quantity: quantity in grams
+	 *
+	 *	@return: status, SUCCESS or FAILED
+	 *********************************************************************************/
+	
+	uint8_t dispenseColor(int quantity)
+	{
+		return SUCCESS;
 	}
 	
 	static uint8_t initRFID(uint32_t CS, uint32_t RST)
