@@ -3,6 +3,7 @@
 #include "Arduino.h"
 #include "Wire.h"
 #include "SPI.h"
+#include "ESP32Servo.h"
 
 // Constant macros
 #define FAILED 0
@@ -20,6 +21,10 @@
 #define RST_1_PIN 22
 #define SS_2_PIN 15
 #define RST_2_PIN 21
+
+#define CART_SERVO_PIN  27
+
+#define OPTICAL_PIN 34
 
 // structs and variables
 typedef struct
@@ -227,7 +232,7 @@ extern "C"
 	uint8_t getGrams(float* grams, uint8_t times = 1);
 	uint8_t tare(uint8_t times = 10);
 	
-	// RFID functions
+	// Cartridge functions
 	uint8_t processCartridges(cartridges_t* cartridge);
 	uint8_t isTrayPlaced();
 	uint8_t moveToCartridge(cartridges_t* cartridge, int color_id);
@@ -243,11 +248,23 @@ extern "C"
 	static void wait_ready(unsigned long delay_ms = 0);
 	static uint8_t is_ready();
 	
-	// RFID functions
+	// Cartridge functions
 	static uint8_t initRFID(uint32_t CS, uint32_t RST);
 	static uint8_t PCD_Init();
 	static uint8_t PCD_Reset();
 	static uint8_t PCD_WriteRegister(PCD_Register reg, uint8_t value);
+	static void PCD_WriteRegister2(PCD_Register reg, byte count, byte *values);
 	static uint8_t PCD_ReadRegister(PCD_Register reg);
+	static void PCD_ReadRegister2(PCD_Register reg, uint8_t count, uint8_t *values, uint8_t rxAlign = 0);
 	static void PCD_AntennaOn();
+	static uint8_t PICC_IsNewCardPresent();
+	static void PCD_ClearRegisterBitMask(PCD_Register reg, uint8_t mask);
+	static uint8_t PICC_REQA_or_WUPA(uint8_t command, uint8_t *bufferATQA,	uint8_t *bufferSize);
+	uint8_t PCD_TransceiveData(	uint8_t *sendData,	uint8_t sendLen, uint8_t *backData, uint8_t *backLen, uint8_t *validBits = nullptr, uint8_t rxAlign = 0, uint8_t checkCRC = false);
+	static uint8_t PCD_CommunicateWithPICC(uint8_t command, uint8_t waitIRq, uint8_t *sendData,	uint8_t sendLen, uint8_t *backData = nullptr,	uint8_t *backLen = nullptr, uint8_t *validBits = nullptr, uint8_t rxAlign = 0, uint8_t checkCRC = false);
+	uint8_t PCD_CalculateCRC(uint8_t *data, uint8_t length, uint8_t *result);
+	static uint8_t initServo(Servo* servo, uint32_t servo_pin);
+	static uint8_t readRFIDs(Servo* servo);
+	static int getCartridgeColor();
+	static void PCD_SetRegisterBitMask(PCD_Register reg, uint8_t mask);
 }
