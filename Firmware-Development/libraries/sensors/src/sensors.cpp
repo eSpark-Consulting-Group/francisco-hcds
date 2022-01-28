@@ -205,9 +205,8 @@ extern "C"
 		Servo servo;
 		
 		initServo(&servo, CART_SERVO_PIN);
-		pinMode(OPTICAL_PIN, INPUT); // Init optical sensor
 		initRFID(SS_1_PIN, RST_1_PIN);
-		readRFIDs(&servo);
+		readRFIDs(&servo, cartridge);
 	}
 	
 	/*********************************************************************************
@@ -370,6 +369,387 @@ extern "C"
 		mySPI->endTransaction(); // Stop using the SPI bus
 	} // End PCD_ReadRegister()
 	
+	static void PICC_DumpToSerial(Uid *uid)
+	{
+		MIFARE_Key key;
+		
+		// Dump UID, SAK and Type
+		PICC_DumpDetailsToSerial(uid);
+		
+		// Dump contents
+		PICC_Type piccType = PICC_GetType(uid->sak);
+		switch (piccType) {
+			case PICC_TYPE_MIFARE_MINI:
+			case PICC_TYPE_MIFARE_1K:
+			case PICC_TYPE_MIFARE_4K:
+				// All keys are set to FFFFFFFFFFFFh at chip delivery from the factory.
+				for (uint8_t i = 0; i < 6; i++) {
+					key.keyByte[i] = 0xFF;
+				}
+				PICC_DumpMifareClassicToSerial(uid, piccType, &key);
+				break;
+				
+			case PICC_TYPE_MIFARE_UL:
+				PICC_DumpMifareUltralightToSerial();
+				break;
+				
+			case PICC_TYPE_ISO_14443_4:
+			case PICC_TYPE_MIFARE_DESFIRE:
+			case PICC_TYPE_ISO_18092:
+			case PICC_TYPE_MIFARE_PLUS:
+			case PICC_TYPE_TNP3XXX:
+				Serial.println(F("Dumping memory contents not implemented for that PICC type."));
+				break;
+				
+			case PICC_TYPE_UNKNOWN:
+			case PICC_TYPE_NOT_COMPLETE:
+			default:
+				break; // No memory dump here
+		}
+		
+		Serial.println();
+		PICC_HaltA(); // Already done if it was a MIFARE Classic PICC.
+	} // End PICC_DumpToSerial()
+	
+	static void PICC_DumpMifareUltralightToSerial() {
+		StatusCode status;
+		uint8_t byteCount;
+		uint8_t buffer[18];
+		uint8_t i;
+		
+		Serial.println(F("Page  0  1  2  3"));
+		// Try the mpages of the original Ultralight. Ultralight C has more pages.
+		for (uint8_t page = 0; page < 16; page +=4) { // Read returns data for 4 pages at a time.
+			// Read pages
+			byteCount = sizeof(buffer);
+			status = MIFARE_Read(page, buffer, &byteCount);
+			if (status != STATUS_OK) {
+				break;
+			}
+			// Dump data
+			for (uint8_t offset = 0; offset < 4; offset++) {
+				i = page + offset;
+				if(i < 10)
+					Serial.print(F("  ")); // Pad with spaces
+				else
+					Serial.print(F(" ")); // Pad with spaces
+				Serial.print(i);
+				Serial.print(F("  "));
+				for (uint8_t index = 0; index < 4; index++) {
+					i = 4 * offset + index;
+					if(buffer[i] < 0x10)
+						Serial.print(F(" 0"));
+					else
+						Serial.print(F(" "));
+					Serial.print(buffer[i], HEX);
+				}
+				Serial.println();
+			}
+		}
+	} // End PICC_DumpMifareUltralightToSerial()
+	
+	static StatusCode PICC_HaltA()
+	{
+		StatusCode result;
+		uint8_t buffer[4];
+		
+		// Build command buffer
+		buffer[0] = PICC_CMD_HLTA;
+		buffer[1] = 0;
+		// Calculate CRC_A
+		result = PCD_CalculateCRC(buffer, 2, &buffer[2]);
+		if (result != STATUS_OK) {
+			return result;
+		}
+		
+		// Send the command.
+		// The standard says:
+		//		If the PICC responds with any modulation during a period of 1 ms after the end of the frame containing the
+		//		HLTA command, this response shall be interpreted as 'not acknowledge'.
+		// We interpret that this way: Only STATUS_TIMEOUT is a success.
+		result = PCD_TransceiveData(buffer, sizeof(buffer), nullptr, 0);
+		if (result == STATUS_TIMEOUT) {
+			return STATUS_OK;
+		}
+		if (result == STATUS_OK) { // That is ironically NOT ok in this case ;-)
+			return STATUS_ERROR;
+		}
+		return result;
+	} // End PICC_HaltA()
+	
+	static void PICC_DumpDetailsToSerial(Uid *uid)
+	{
+		// UID
+		Serial.print(F("Card UID:"));
+		for (byte i = 0; i < uid->size; i++) {
+			if(uid->uidByte[i] < 0x10)
+				Serial.print(F(" 0"));
+			else
+				Serial.print(F(" "));
+			Serial.print(uid->uidByte[i], HEX);
+		} 
+		Serial.println();
+		
+		// SAK
+		Serial.print(F("Card SAK: "));
+		if(uid->sak < 0x10)
+			Serial.print(F("0"));
+		Serial.println(uid->sak, HEX);
+		
+		// (suggested) PICC type
+		/*PICC_Type piccType = PICC_GetType(uid->sak);
+		Serial.print(F("PICC type: "));
+		Serial.println(PICC_GetTypeName(piccType));*/
+	} // End PICC_DumpDetailsToSerial()
+	
+	static PICC_Type PICC_GetType(uint8_t sak) 
+	{
+		// http://www.nxp.com/documents/application_note/AN10833.pdf 
+		// 3.2 Coding of Select Acknowledge (SAK)
+		// ignore 8-bit (iso14443 starts with LSBit = bit 1)
+		// fixes wrong type for manufacturer Infineon (http://nfc-tools.org/index.php?title=ISO14443A)
+		sak &= 0x7F;
+		switch (sak) {
+			case 0x04:	return PICC_TYPE_NOT_COMPLETE;	// UID not complete
+			case 0x09:	return PICC_TYPE_MIFARE_MINI;
+			case 0x08:	return PICC_TYPE_MIFARE_1K;
+			case 0x18:	return PICC_TYPE_MIFARE_4K;
+			case 0x00:	return PICC_TYPE_MIFARE_UL;
+			case 0x10:
+			case 0x11:	return PICC_TYPE_MIFARE_PLUS;
+			case 0x01:	return PICC_TYPE_TNP3XXX;
+			case 0x20:	return PICC_TYPE_ISO_14443_4;
+			case 0x40:	return PICC_TYPE_ISO_18092;
+			default:	return PICC_TYPE_UNKNOWN;
+		}
+	} // End PICC_GetType()
+	
+	static void PICC_DumpMifareClassicToSerial(	Uid *uid, PICC_Type piccType, MIFARE_Key *key) {
+		uint8_t no_of_sectors = 0;
+		switch (piccType) {
+			case PICC_TYPE_MIFARE_MINI:
+				// Has 5 sectors * 4 blocks/sector * 16 bytes/block = 320 bytes.
+				no_of_sectors = 5;
+				break;
+				
+			case PICC_TYPE_MIFARE_1K:
+				// Has 16 sectors * 4 blocks/sector * 16 bytes/block = 1024 bytes.
+				no_of_sectors = 16;
+				break;
+				
+			case PICC_TYPE_MIFARE_4K:
+				// Has (32 sectors * 4 blocks/sector + 8 sectors * 16 blocks/sector) * 16 bytes/block = 4096 bytes.
+				no_of_sectors = 40;
+				break;
+				
+			default: // Should not happen. Ignore.
+				break;
+		}
+		
+		// Dump sectors, highest address first.
+		if (no_of_sectors) {
+			Serial.println(F("Sector Block   0  1  2  3   4  5  6  7   8  9 10 11  12 13 14 15  AccessBits"));
+			for (int8_t i = no_of_sectors - 1; i >= 0; i--) {
+				PICC_DumpMifareClassicSectorToSerial(uid, key, i);
+			}
+		}
+		PICC_HaltA(); // Halt the PICC before stopping the encrypted session.
+		PCD_StopCrypto1();
+	} // End PICC_DumpMifareClassicToSerial()
+	
+	static void PCD_StopCrypto1() {
+		// Clear MFCrypto1On bit
+		PCD_ClearRegisterBitMask(Status2Reg, 0x08); // Status2Reg[7..0] bits are: TempSensClear I2CForceHS reserved reserved MFCrypto1On ModemState[2:0]
+	} // End PCD_StopCrypto1()
+	
+	static void PICC_DumpMifareClassicSectorToSerial(Uid *uid, MIFARE_Key *key,	uint8_t sector)
+	{
+		StatusCode status;
+		uint8_t firstBlock;		// Address of lowest address to dump actually last block dumped)
+		uint8_t no_of_blocks;		// Number of blocks in sector
+		uint8_t isSectorTrailer;	// Set to true while handling the "last" (ie highest address) in the sector.
+		
+		// The access bits are stored in a peculiar fashion.
+		// There are four groups:
+		//		g[3]	Access bits for the sector trailer, block 3 (for sectors 0-31) or block 15 (for sectors 32-39)
+		//		g[2]	Access bits for block 2 (for sectors 0-31) or blocks 10-14 (for sectors 32-39)
+		//		g[1]	Access bits for block 1 (for sectors 0-31) or blocks 5-9 (for sectors 32-39)
+		//		g[0]	Access bits for block 0 (for sectors 0-31) or blocks 0-4 (for sectors 32-39)
+		// Each group has access bits [C1 C2 C3]. In this code C1 is MSB and C3 is LSB.
+		// The four CX bits are stored together in a nible cx and an inverted nible cx_.
+		uint8_t c1, c2, c3;		// Nibbles
+		uint8_t c1_, c2_, c3_;		// Inverted nibbles
+		uint8_t invertedError;		// True if one of the inverted nibbles did not match
+		uint8_t g[4];				// Access bits for each of the four groups.
+		uint8_t group;				// 0-3 - active group for access bits
+		uint8_t firstInGroup;		// True for the first block dumped in the group
+		
+		// Determine position and size of sector.
+		if (sector < 32) { // Sectors 0..31 has 4 blocks each
+			no_of_blocks = 4;
+			firstBlock = sector * no_of_blocks;
+		}
+		else if (sector < 40) { // Sectors 32-39 has 16 blocks each
+			no_of_blocks = 16;
+			firstBlock = 128 + (sector - 32) * no_of_blocks;
+		}
+		else { // Illegal input, no MIFARE Classic PICC has more than 40 sectors.
+			return;
+		}
+			
+		// Dump blocks, highest address first.
+		uint8_t byteCount;
+		uint8_t buffer[18];
+		uint8_t blockAddr;
+		isSectorTrailer = true;
+		invertedError = false;	// Avoid "unused variable" warning.
+		for (int8_t blockOffset = no_of_blocks - 1; blockOffset >= 0; blockOffset--) {
+			blockAddr = firstBlock + blockOffset;
+			// Sector number - only on first line
+			if (isSectorTrailer) {
+				if(sector < 10)
+					Serial.print(F("   ")); // Pad with spaces
+				else
+					Serial.print(F("  ")); // Pad with spaces
+				Serial.print(sector);
+				Serial.print(F("   "));
+			}
+			else {
+				Serial.print(F("       "));
+			}
+			// Block number
+			if(blockAddr < 10)
+				Serial.print(F("   ")); // Pad with spaces
+			else {
+				if(blockAddr < 100)
+					Serial.print(F("  ")); // Pad with spaces
+				else
+					Serial.print(F(" ")); // Pad with spaces
+			}
+			Serial.print(blockAddr);
+			Serial.print(F("  "));
+			// Establish encrypted communications before reading the first block
+			if (isSectorTrailer) {
+				status = PCD_Authenticate(PICC_CMD_MF_AUTH_KEY_A, firstBlock, key, uid);
+				/*if (status != STATUS_OK) {
+					Serial.print(F("PCD_Authenticate() failed: "));
+					Serial.println(GetStatusCodeName(status));
+					return;
+				}*/
+			}
+			// Read block
+			byteCount = sizeof(buffer);
+			status = MIFARE_Read(blockAddr, buffer, &byteCount);
+			/*if (status != STATUS_OK) {
+				Serial.print(F("MIFARE_Read() failed: "));
+				Serial.println(GetStatusCodeName(status));
+				continue;
+			}*/
+			// Dump data
+			for (byte index = 0; index < 16; index++) {
+				if(buffer[index] < 0x10)
+					Serial.print(F(" 0"));
+				else
+					Serial.print(F(" "));
+				Serial.print(buffer[index], HEX);
+				if ((index % 4) == 3) {
+					Serial.print(F(" "));
+				}
+			}
+			// Parse sector trailer data
+			if (isSectorTrailer) {
+				c1  = buffer[7] >> 4;
+				c2  = buffer[8] & 0xF;
+				c3  = buffer[8] >> 4;
+				c1_ = buffer[6] & 0xF;
+				c2_ = buffer[6] >> 4;
+				c3_ = buffer[7] & 0xF;
+				invertedError = (c1 != (~c1_ & 0xF)) || (c2 != (~c2_ & 0xF)) || (c3 != (~c3_ & 0xF));
+				g[0] = ((c1 & 1) << 2) | ((c2 & 1) << 1) | ((c3 & 1) << 0);
+				g[1] = ((c1 & 2) << 1) | ((c2 & 2) << 0) | ((c3 & 2) >> 1);
+				g[2] = ((c1 & 4) << 0) | ((c2 & 4) >> 1) | ((c3 & 4) >> 2);
+				g[3] = ((c1 & 8) >> 1) | ((c2 & 8) >> 2) | ((c3 & 8) >> 3);
+				isSectorTrailer = false;
+			}
+			
+			// Which access group is this block in?
+			if (no_of_blocks == 4) {
+				group = blockOffset;
+				firstInGroup = true;
+			}
+			else {
+				group = blockOffset / 5;
+				firstInGroup = (group == 3) || (group != (blockOffset + 1) / 5);
+			}
+			
+			if (firstInGroup) {
+				// Print access bits
+				Serial.print(F(" [ "));
+				Serial.print((g[group] >> 2) & 1, DEC); Serial.print(F(" "));
+				Serial.print((g[group] >> 1) & 1, DEC); Serial.print(F(" "));
+				Serial.print((g[group] >> 0) & 1, DEC);
+				Serial.print(F(" ] "));
+				if (invertedError) {
+					Serial.print(F(" Inverted access bits did not match! "));
+				}
+			}
+			
+			if (group != 3 && (g[group] == 1 || g[group] == 6)) { // Not a sector trailer, a value block
+				int32_t value = (int32_t(buffer[3])<<24) | (int32_t(buffer[2])<<16) | (int32_t(buffer[1])<<8) | int32_t(buffer[0]);
+				Serial.print(F(" Value=0x")); Serial.print(value, HEX);
+				Serial.print(F(" Adr=0x")); Serial.print(buffer[12], HEX);
+			}
+			Serial.println();
+		}
+		
+		return;
+	} // End PICC_DumpMifareClassicSectorToSerial()
+	
+	static StatusCode MIFARE_Read(uint8_t blockAddr, uint8_t *buffer, uint8_t *bufferSize) 
+	{
+		StatusCode result;
+		
+		// Sanity check
+		if (buffer == nullptr || *bufferSize < 18) {
+			return STATUS_NO_ROOM;
+		}
+		
+		// Build command buffer
+		buffer[0] = PICC_CMD_MF_READ;
+		buffer[1] = blockAddr;
+		// Calculate CRC_A
+		result = PCD_CalculateCRC(buffer, 2, &buffer[2]);
+		if (result != STATUS_OK) {
+			return result;
+		}
+		
+		// Transmit the buffer and receive the response, validate CRC_A.
+		return PCD_TransceiveData(buffer, 4, buffer, bufferSize, nullptr, 0, true);
+	} // End MIFARE_Read()
+	
+	static StatusCode PCD_Authenticate(uint8_t command, uint8_t blockAddr, MIFARE_Key *key, Uid *uid)
+	{
+		uint8_t waitIRq = 0x10;		// IdleIRq
+		
+		// Build command buffer
+		uint8_t sendData[12];
+		sendData[0] = command;
+		sendData[1] = blockAddr;
+		for (uint8_t i = 0; i < MF_KEY_SIZE; i++) {	// 6 key bytes
+			sendData[2+i] = key->keyByte[i];
+		}
+		// Use the last uid bytes as specified in http://cache.nxp.com/documents/application_note/AN10927.pdf
+		// section 3.2.5 "MIFARE Classic Authentication".
+		// The only missed case is the MF1Sxxxx shortcut activation,
+		// but it requires cascade tag (CT) byte, that is not part of uid.
+		for (uint8_t i = 0; i < 4; i++) {				// The last 4 bytes of the UID
+			sendData[8+i] = uid->uidByte[i+uid->size-4];
+		}
+		
+		// Start the authentication.
+		return PCD_CommunicateWithPICC(PCD_MFAuthent, waitIRq, &sendData[0], sizeof(sendData));
+	} // End PCD_Authenticate()
+	
 	static void PCD_AntennaOn()
 	{
 		uint8_t value = PCD_ReadRegister(TxControlReg);
@@ -385,9 +765,227 @@ extern "C"
 		servo->write(0);
 	}
 	
-	static uint8_t readRFIDs(Servo* servo)
+	static uint8_t PICC_ReadCardSerial() {
+		StatusCode result = PICC_Select(&uid);
+		return (result == STATUS_OK);
+	}
+	
+	static StatusCode PICC_Select(Uid *uid, uint8_t validBits)
+	{
+		uint8_t uidComplete;
+		uint8_t selectDone;
+		uint8_t useCascadeTag;
+		uint8_t cascadeLevel = 1;
+		StatusCode result;
+		uint8_t count;
+		uint8_t checkBit;
+		uint8_t index;
+		uint8_t uidIndex;					// The first index in uid->uidByte[] that is used in the current Cascade Level.
+		int8_t currentLevelKnownBits;		// The number of known UID bits in the current Cascade Level.
+		uint8_t buffer[9];					// The SELECT/ANTICOLLISION commands uses a 7 byte standard frame + 2 bytes CRC_A
+		uint8_t bufferUsed;				// The number of bytes used in the buffer, ie the number of bytes to transfer to the FIFO.
+		uint8_t rxAlign;					// Used in BitFramingReg. Defines the bit position for the first bit received.
+		uint8_t txLastBits;				// Used in BitFramingReg. The number of valid bits in the last transmitted byte. 
+		uint8_t *responseBuffer;
+		uint8_t responseLength;
+		
+		// Description of buffer structure:
+		//		Byte 0: SEL 				Indicates the Cascade Level: PICC_CMD_SEL_CL1, PICC_CMD_SEL_CL2 or PICC_CMD_SEL_CL3
+		//		Byte 1: NVB					Number of Valid Bits (in complete command, not just the UID): High nibble: complete bytes, Low nibble: Extra bits. 
+		//		Byte 2: UID-data or CT		See explanation below. CT means Cascade Tag.
+		//		Byte 3: UID-data
+		//		Byte 4: UID-data
+		//		Byte 5: UID-data
+		//		Byte 6: BCC					Block Check Character - XOR of bytes 2-5
+		//		Byte 7: CRC_A
+		//		Byte 8: CRC_A
+		// The BCC and CRC_A are only transmitted if we know all the UID bits of the current Cascade Level.
+		//
+		// Description of bytes 2-5: (Section 6.5.4 of the ISO/IEC 14443-3 draft: UID contents and cascade levels)
+		//		UID size	Cascade level	Byte2	Byte3	Byte4	Byte5
+		//		========	=============	=====	=====	=====	=====
+		//		 4 bytes		1			uid0	uid1	uid2	uid3
+		//		 7 bytes		1			CT		uid0	uid1	uid2
+		//						2			uid3	uid4	uid5	uid6
+		//		10 bytes		1			CT		uid0	uid1	uid2
+		//						2			CT		uid3	uid4	uid5
+		//						3			uid6	uid7	uid8	uid9
+		
+		// Sanity checks
+		if (validBits > 80) {
+			return STATUS_INVALID;
+		}
+		
+		// Prepare MFRC522
+		PCD_ClearRegisterBitMask(CollReg, 0x80);		// ValuesAfterColl=1 => Bits received after collision are cleared.
+		
+		// Repeat Cascade Level loop until we have a complete UID.
+		uidComplete = false;
+		while (!uidComplete) {
+			// Set the Cascade Level in the SEL byte, find out if we need to use the Cascade Tag in byte 2.
+			switch (cascadeLevel) {
+				case 1:
+					buffer[0] = PICC_CMD_SEL_CL1;
+					uidIndex = 0;
+					useCascadeTag = validBits && uid->size > 4;	// When we know that the UID has more than 4 bytes
+					break;
+				
+				case 2:
+					buffer[0] = PICC_CMD_SEL_CL2;
+					uidIndex = 3;
+					useCascadeTag = validBits && uid->size > 7;	// When we know that the UID has more than 7 bytes
+					break;
+				
+				case 3:
+					buffer[0] = PICC_CMD_SEL_CL3;
+					uidIndex = 6;
+					useCascadeTag = false;						// Never used in CL3.
+					break;
+				
+				default:
+					return STATUS_INTERNAL_ERROR;
+					break;
+			}
+			
+			// How many UID bits are known in this Cascade Level?
+			currentLevelKnownBits = validBits - (8 * uidIndex);
+			if (currentLevelKnownBits < 0) {
+				currentLevelKnownBits = 0;
+			}
+			// Copy the known bits from uid->uidByte[] to buffer[]
+			index = 2; // destination index in buffer[]
+			if (useCascadeTag) {
+				buffer[index++] = PICC_CMD_CT;
+			}
+			byte bytesToCopy = currentLevelKnownBits / 8 + (currentLevelKnownBits % 8 ? 1 : 0); // The number of bytes needed to represent the known bits for this level.
+			if (bytesToCopy) {
+				byte maxBytes = useCascadeTag ? 3 : 4; // Max 4 bytes in each Cascade Level. Only 3 left if we use the Cascade Tag
+				if (bytesToCopy > maxBytes) {
+					bytesToCopy = maxBytes;
+				}
+				for (count = 0; count < bytesToCopy; count++) {
+					buffer[index++] = uid->uidByte[uidIndex + count];
+				}
+			}
+			// Now that the data has been copied we need to include the 8 bits in CT in currentLevelKnownBits
+			if (useCascadeTag) {
+				currentLevelKnownBits += 8;
+			}
+			
+			// Repeat anti collision loop until we can transmit all UID bits + BCC and receive a SAK - max 32 iterations.
+			selectDone = false;
+			while (!selectDone) {
+				// Find out how many bits and bytes to send and receive.
+				if (currentLevelKnownBits >= 32) { // All UID bits in this Cascade Level are known. This is a SELECT.
+					//Serial.print(F("SELECT: currentLevelKnownBits=")); Serial.println(currentLevelKnownBits, DEC);
+					buffer[1] = 0x70; // NVB - Number of Valid Bits: Seven whole bytes
+					// Calculate BCC - Block Check Character
+					buffer[6] = buffer[2] ^ buffer[3] ^ buffer[4] ^ buffer[5];
+					// Calculate CRC_A
+					result = PCD_CalculateCRC(buffer, 7, &buffer[7]);
+					if (result != STATUS_OK) {
+						return result;
+					}
+					txLastBits		= 0; // 0 => All 8 bits are valid.
+					bufferUsed		= 9;
+					// Store response in the last 3 bytes of buffer (BCC and CRC_A - not needed after tx)
+					responseBuffer	= &buffer[6];
+					responseLength	= 3;
+				}
+				else { // This is an ANTICOLLISION.
+					//Serial.print(F("ANTICOLLISION: currentLevelKnownBits=")); Serial.println(currentLevelKnownBits, DEC);
+					txLastBits		= currentLevelKnownBits % 8;
+					count			= currentLevelKnownBits / 8;	// Number of whole bytes in the UID part.
+					index			= 2 + count;					// Number of whole bytes: SEL + NVB + UIDs
+					buffer[1]		= (index << 4) + txLastBits;	// NVB - Number of Valid Bits
+					bufferUsed		= index + (txLastBits ? 1 : 0);
+					// Store response in the unused part of buffer
+					responseBuffer	= &buffer[index];
+					responseLength	= sizeof(buffer) - index;
+				}
+				
+				// Set bit adjustments
+				rxAlign = txLastBits;											// Having a separate variable is overkill. But it makes the next line easier to read.
+				PCD_WriteRegister(BitFramingReg, (rxAlign << 4) + txLastBits);	// RxAlign = BitFramingReg[6..4]. TxLastBits = BitFramingReg[2..0]
+				
+				// Transmit the buffer and receive the response.
+				result = PCD_TransceiveData(buffer, bufferUsed, responseBuffer, &responseLength, &txLastBits, rxAlign);
+				if (result == STATUS_COLLISION) { // More than one PICC in the field => collision.
+					byte valueOfCollReg = PCD_ReadRegister(CollReg); // CollReg[7..0] bits are: ValuesAfterColl reserved CollPosNotValid CollPos[4:0]
+					if (valueOfCollReg & 0x20) { // CollPosNotValid
+						return STATUS_COLLISION; // Without a valid collision position we cannot continue
+					}
+					byte collisionPos = valueOfCollReg & 0x1F; // Values 0-31, 0 means bit 32.
+					if (collisionPos == 0) {
+						collisionPos = 32;
+					}
+					if (collisionPos <= currentLevelKnownBits) { // No progress - should not happen 
+						return STATUS_INTERNAL_ERROR;
+					}
+					// Choose the PICC with the bit set.
+					currentLevelKnownBits	= collisionPos;
+					count			= currentLevelKnownBits % 8; // The bit to modify
+					checkBit		= (currentLevelKnownBits - 1) % 8;
+					index			= 1 + (currentLevelKnownBits / 8) + (count ? 1 : 0); // First byte is index 0.
+					buffer[index]	|= (1 << checkBit);
+				}
+				else if (result != STATUS_OK) {
+					return result;
+				}
+				else { // STATUS_OK
+					if (currentLevelKnownBits >= 32) { // This was a SELECT.
+						selectDone = true; // No more anticollision 
+						// We continue below outside the while.
+					}
+					else { // This was an ANTICOLLISION.
+						// We now have all 32 bits of the UID in this Cascade Level
+						currentLevelKnownBits = 32;
+						// Run loop again to do the SELECT.
+					}
+				}
+			} // End of while (!selectDone)
+			
+			// We do not check the CBB - it was constructed by us above.
+			
+			// Copy the found UID bytes from buffer[] to uid->uidByte[]
+			index			= (buffer[2] == PICC_CMD_CT) ? 3 : 2; // source index in buffer[]
+			bytesToCopy		= (buffer[2] == PICC_CMD_CT) ? 3 : 4;
+			for (count = 0; count < bytesToCopy; count++) {
+				uid->uidByte[uidIndex + count] = buffer[index++];
+			}
+			
+			// Check response SAK (Select Acknowledge)
+			if (responseLength != 3 || txLastBits != 0) { // SAK must be exactly 24 bits (1 byte + CRC_A).
+				return STATUS_ERROR;
+			}
+			// Verify CRC_A - do our own calculation and store the control in buffer[2..3] - those bytes are not needed anymore.
+			result = PCD_CalculateCRC(responseBuffer, 1, &buffer[2]);
+			if (result != STATUS_OK) {
+				return result;
+			}
+			if ((buffer[2] != responseBuffer[1]) || (buffer[3] != responseBuffer[2])) {
+				return STATUS_CRC_WRONG;
+			}
+			if (responseBuffer[0] & 0x04) { // Cascade bit set - UID not complete yes
+				cascadeLevel++;
+			}
+			else {
+				uidComplete = true;
+				uid->sak = responseBuffer[0];
+			}
+		} // End of while (!uidComplete)
+		
+		// Set correct uid->size
+		uid->size = 3 * cascadeLevel + 1;
+
+		return STATUS_OK;
+	} // End PICC_Select()
+	
+	static uint8_t readRFIDs(Servo* servo, cartridges_t* cartridge)
 	{
 		int pos;
+		
+		pinMode(OPTICAL_PIN, INPUT); // Init optical sensor
 		
 		for (int INDEX = 0; INDEX < 360; INDEX++)
 		{
@@ -419,41 +1017,45 @@ extern "C"
 
 			Serial.println("");*/
 
-			if (PICC_IsNewCardPresent() && proximityV < 20)
+			if ((PICC_IsNewCardPresent()) && (proximityV < 20))
 			{
-			  getCartridgeColor();
-			  int a = getCartridgeColor();
-			  Serial.print("a = ");
-			  Serial.println(a);
+			  //getCartridgeColor();
+			  getCartridgeColor(cartridge);
+			  /*Serial.print("a = ");
+			  Serial.println(a);*/
 
 			  //Serial.println("RFID + OPTICAL DETECTED");
 
-			  for (int i = 0; i < 11; i++)
+			  for (int color = RED; color <= LIGHTENER; color++)
 
 			  {
 
-				/*if (a ==  colors[i])
+				if (cartridge->color_selected ==  color)
 
 				{
-				  degreesOfColors[i] = pos;
-				}*/
+				  cartridge->degreesOfColors[color] = pos;
+				}
 			  }
 			}
 	  }
 	}
 	
-	int getCartridgeColor()
+	uint8_t getCartridgeColor(cartridges_t* cartridge)
 	{
 
-	  /*Serial.println("In getCartridgeColor Function");
+	  //Serial.println("In getCartridgeColor Function");
 
 	  String threeBytes = "";
 
 	  String colorName = "";
+	  
+	  String temp_CID;
+	  
+	  String CIDS[11] = {"806", "733", "694", "123", "123", "123", "123", "793", "123", "123", "19b"};
 
 	  int color_r = 0;
 
-	  if ( ! rfid_1.PICC_IsNewCardPresent()) {
+	  if (!PICC_IsNewCardPresent()) {
 
 		Serial.println("IsNewcCardPresent");
 
@@ -464,24 +1066,22 @@ extern "C"
 
 	  // Select one of the cards
 
-	  if ( ! rfid_1.PICC_ReadCardSerial()) {
-
-		Serial.println("ReadCardSerial");
+	  if (!PICC_ReadCardSerial()) {
 
 		return 0;
 
 	  }
 
-	  rfid_1.PICC_DumpToSerial(&(rfid_1.uid));
+	  PICC_DumpToSerial(&(uid));
 
 	  Serial.println("UID");
 
 	  temp_CID = "";
 
 
-	  for (byte i = 0; i < rfid_1.uid.size; i++) {
+	  for (uint8_t i = 0; i < uid.size; i++) {
 
-		if (rfid_1.uid.uidByte[i] < 0x10)
+		if (uid.uidByte[i] < 0x10)
 
 		  //Serial.print(F("0"));
 
@@ -495,26 +1095,19 @@ extern "C"
 
 		//Serial.print(rfid_1.uid.uidByte[(rfid_1.uid.size - 1) - i], HEX);
 
-		temp_CID += String(rfid_1.uid.uidByte[i], HEX);
+		temp_CID += String(uid.uidByte[i], HEX);
 
 	  }
 
 	  threeBytes = temp_CID.substring(0, 3);
 
 	  // Search Color
-
-	  for (int i = 0; i < 11; i++)
+	  for (uint8_t color = RED; color <= LIGHTENER; color++)
 
 	  {
-
-		if (threeBytes == CIDS[i])
-
+		if (threeBytes == CIDS[color])
 		{
-
-		  color_r = colors[i];
-
-		  colorName = color_names[i];
-
+		  cartridge->color_selected = (colors)color;
 		}
 
 	  }
@@ -529,7 +1122,7 @@ extern "C"
 
 	  Serial.println("End getCartridge Fucntion");
 
-	  return color_r;*/
+	  return SUCCESS;
 
 	}
 	
@@ -575,13 +1168,13 @@ extern "C"
 		return STATUS_OK;
 	}
 	
-	uint8_t PCD_TransceiveData(	uint8_t *sendData,	uint8_t sendLen, uint8_t *backData, uint8_t *backLen, uint8_t *validBits, uint8_t rxAlign, uint8_t checkCRC)
+	StatusCode PCD_TransceiveData(	uint8_t *sendData,	uint8_t sendLen, uint8_t *backData, uint8_t *backLen, uint8_t *validBits, uint8_t rxAlign, uint8_t checkCRC)
 	{
 		byte waitIRq = 0x30;		// RxIRq and IdleIRq
 		return PCD_CommunicateWithPICC(PCD_Transceive, waitIRq, sendData, sendLen, backData, backLen, validBits, rxAlign, checkCRC);
 	}
 	
-	static uint8_t PCD_CommunicateWithPICC(uint8_t command, uint8_t waitIRq, uint8_t *sendData,	uint8_t sendLen, uint8_t *backData,	uint8_t *backLen, uint8_t *validBits, uint8_t rxAlign, uint8_t checkCRC) 
+	static StatusCode PCD_CommunicateWithPICC(uint8_t command, uint8_t waitIRq, uint8_t *sendData,	uint8_t sendLen, uint8_t *backData,	uint8_t *backLen, uint8_t *validBits, uint8_t rxAlign, uint8_t checkCRC) 
 	{
 		// Prepare values for BitFramingReg
 		uint8_t txLastBits = validBits ? *validBits : 0;
@@ -657,7 +1250,7 @@ extern "C"
 			}
 			// Verify CRC_A - do our own calculation and store the control in controlBuffer.
 			uint8_t controlBuffer[2];
-			uint8_t status = PCD_CalculateCRC(&backData[0], *backLen - 2, &controlBuffer[0]);
+			StatusCode status = PCD_CalculateCRC(&backData[0], *backLen - 2, &controlBuffer[0]);
 			if (status != STATUS_OK) {
 				return status;
 			}
@@ -676,7 +1269,7 @@ extern "C"
 		PCD_WriteRegister(reg, tmp | mask);
 	}
 	
-	uint8_t PCD_CalculateCRC(uint8_t *data, uint8_t length, uint8_t *result)
+	StatusCode PCD_CalculateCRC(uint8_t *data, uint8_t length, uint8_t *result)
 	{
 		PCD_WriteRegister(CommandReg, PCD_Idle);		// Stop any active command.
 		PCD_WriteRegister(DivIrqReg, 0x04);				// Clear the CRCIRq interrupt request bit

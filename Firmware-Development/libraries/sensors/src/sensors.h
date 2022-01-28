@@ -27,12 +27,26 @@
 #define OPTICAL_PIN 34
 
 // structs and variables
-typedef struct
+typedef enum : uint8_t
 {
-	int colors[11];
-	int degreesOfColors[11];
-	float quantityAvailable[11];
-	
+	RED = 1,
+	YELLOW,
+	GREEN,
+	PINK,
+	BLACK,
+	AQUA,
+	AERO_BLUE,
+	BLUE,
+	MAGNETA,
+	GOLD,
+	LIGHTENER,
+}colors;
+
+typedef struct
+{	
+	int degreesOfColors[11] = {0.};
+	colors color_selected;
+	float quantityAvailable[11] = {0.0};
 }cartridges_t;
 
 // Size of the MFRC522 FIFO
@@ -197,7 +211,7 @@ enum PICC_Type : byte {
 
 // Return codes from the functions in this class. Remember to update GetStatusCodeName() if you add more.
 // last value set to 0xff, then compiler uses less ram, it seems some optimisations are triggered
-enum StatusCode : byte {
+enum StatusCode : uint8_t {
 	STATUS_OK				,	// Success
 	STATUS_ERROR			,	// Error in communication
 	STATUS_COLLISION		,	// Collission detected
@@ -211,9 +225,9 @@ enum StatusCode : byte {
 
 // A struct used for passing the UID of a PICC.
 typedef struct {
-	byte		size;			// Number of bytes in the UID. 4, 7 or 10.
-	byte		uidByte[10];
-	byte		sak;			// The SAK (Select acknowledge) byte returned from the PICC after successful selection.
+	uint8_t		size;			// Number of bytes in the UID. 4, 7 or 10.
+	uint8_t		uidByte[10];
+	uint8_t		sak;			// The SAK (Select acknowledge) byte returned from the PICC after successful selection.
 } Uid;
 
 // A struct used for passing a MIFARE Crypto1 key
@@ -260,11 +274,22 @@ extern "C"
 	static uint8_t PICC_IsNewCardPresent();
 	static void PCD_ClearRegisterBitMask(PCD_Register reg, uint8_t mask);
 	static uint8_t PICC_REQA_or_WUPA(uint8_t command, uint8_t *bufferATQA,	uint8_t *bufferSize);
-	uint8_t PCD_TransceiveData(	uint8_t *sendData,	uint8_t sendLen, uint8_t *backData, uint8_t *backLen, uint8_t *validBits = nullptr, uint8_t rxAlign = 0, uint8_t checkCRC = false);
-	static uint8_t PCD_CommunicateWithPICC(uint8_t command, uint8_t waitIRq, uint8_t *sendData,	uint8_t sendLen, uint8_t *backData = nullptr,	uint8_t *backLen = nullptr, uint8_t *validBits = nullptr, uint8_t rxAlign = 0, uint8_t checkCRC = false);
-	uint8_t PCD_CalculateCRC(uint8_t *data, uint8_t length, uint8_t *result);
+	static StatusCode PCD_TransceiveData(	uint8_t *sendData,	uint8_t sendLen, uint8_t *backData, uint8_t *backLen, uint8_t *validBits = nullptr, uint8_t rxAlign = 0, uint8_t checkCRC = false);
+	static StatusCode PCD_CommunicateWithPICC(uint8_t command, uint8_t waitIRq, uint8_t *sendData,	uint8_t sendLen, uint8_t *backData = nullptr,	uint8_t *backLen = nullptr, uint8_t *validBits = nullptr, uint8_t rxAlign = 0, uint8_t checkCRC = false);
+	static StatusCode PCD_CalculateCRC(uint8_t *data, uint8_t length, uint8_t *result);
 	static uint8_t initServo(Servo* servo, uint32_t servo_pin);
-	static uint8_t readRFIDs(Servo* servo);
-	static int getCartridgeColor();
+	static uint8_t readRFIDs(Servo* servo, cartridges_t* cartridge);
+	static uint8_t getCartridgeColor(cartridges_t* cartridge);
 	static void PCD_SetRegisterBitMask(PCD_Register reg, uint8_t mask);
+	static void PICC_DumpToSerial(Uid *uid);
+	static void PICC_DumpDetailsToSerial(Uid *uid);
+	static PICC_Type PICC_GetType(uint8_t sak);
+	static void PICC_DumpMifareClassicToSerial(Uid *uid, PICC_Type piccType, MIFARE_Key *key);
+	static void PICC_DumpMifareClassicSectorToSerial(Uid *uid, MIFARE_Key *key,	uint8_t sector);
+	static void PICC_DumpMifareUltralightToSerial();
+	static StatusCode PICC_HaltA();
+	static StatusCode MIFARE_Read(uint8_t blockAddr, uint8_t *buffer, uint8_t *bufferSize);
+	static StatusCode PCD_Authenticate(uint8_t command, uint8_t blockAddr, MIFARE_Key *key, Uid *uid);
+	static void PCD_StopCrypto1();
+	static StatusCode PICC_Select(Uid *uid, uint8_t  = 0);
 }
