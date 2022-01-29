@@ -7,8 +7,14 @@ uint32_t DOUT_GLOBAL = NULL;
 uint32_t CLK_GLOBAL = NULL;
 uint32_t CS_GLOBAL = NULL;
 uint32_t RST_GLOBAL = NULL;
+uint32_t opticalPin_GLOBAL = NULL;
+uint32_t dispenserServoPin_GLOBAL  = NULL;
+uint32_t cartridgeServoPin_GLOBAL  = NULL;
+uint32_t RST_Cartridge_GLOBAL  = NULL;
+uint32_t CS_Cartridge_GLOBAL  = NULL;
+uint32_t RST_Tray_GLOBAL = NULL;
+uint32_t CS_Tray_GLOBAL  = NULL;
 
-uint32_t 
 float SCALE = 1;
 SPIClass* mySPI;
 Uid uid;
@@ -218,8 +224,8 @@ extern "C"
 		initHX711();
 		
 		// Cartridge RFID
-		initServo(&servo, CART_SERVO_PIN);
-		initRFID(SS_1_PIN, RST_1_PIN);
+		initServo(&servo, opticalPin_GLOBAL );
+		initRFID(CS_Cartridge_GLOBAL, RST_Cartridge_GLOBAL );
 		PCD_Init();
 		readRFIDs(&servo, cartridge);
 		deleteRFID();
@@ -234,7 +240,7 @@ extern "C"
 	uint8_t isTrayPlaced()
 	{
 		// Tray RFID
-		initRFID(SS_2_PIN, RST_2_PIN);
+		initRFID(CS_Tray_GLOBAL , RST_Tray_GLOBAL );
 		PCD_Init();
 		uint8_t	result = PICC_IsNewCardPresent();
 		
@@ -258,7 +264,7 @@ extern "C"
 		
 		cartridge->color_selected = color_id;
 		
-		initServo(&servo, CART_SERVO_PIN);
+		initServo(&servo, opticalPin_GLOBAL);
 		servo.write(cartridge->degreesOfColors[color_id]);
 		
 		return SUCCESS;
@@ -276,7 +282,7 @@ extern "C"
 	uint8_t dispenseColor(int quantity, cartridges_t* cartridge)
 	{
 		Servo servo;
-		initServo(&servo, DIS_SERVO_PIN);
+		initServo(&servo, dispenserServoPin_GLOBAL);
 		
 		colors color_choosen = cartridge->color_selected;
 		while(true)
@@ -312,7 +318,7 @@ extern "C"
 		return SUCCESS;
 	}
 	
-	uint8_t setTrayRFIDPins(uint32_t CS_PIN, uint32_t RST_PIN);
+	uint8_t setTrayRFIDPins(uint32_t CS_PIN, uint32_t RST_PIN)
 	{
 		CS_Tray_GLOBAL = CS_PIN;
 		RST_Tray_GLOBAL = RST_PIN;
@@ -330,20 +336,20 @@ extern "C"
 	
 	uint8_t setCartridgeServoPin(uint32_t SERVO_PIN)
 	{
-		cartridgeServoPin = SERVO_PIN;
+		cartridgeServoPin_GLOBAL = SERVO_PIN;
 		return SUCCESS;
 	}
 	
 	uint8_t setDispenserServoPin(uint32_t SERVO_PIN)
 	{
-		dispenserServoPin = SERVO_PIN;
+		dispenserServoPin_GLOBAL = SERVO_PIN;
 		
 		return SUCCESS;
 	}
 	
 	uint8_t setOpticalPin(uint32_t OPTICAL_PIN)
 	{
-		opticalPin = OPTICAL_PIN;
+		opticalPin_GLOBAL = OPTICAL_PIN;
 		
 		return SUCCESS;
 	}
@@ -1106,7 +1112,7 @@ extern "C"
 	{
 		int pos;
 		
-		pinMode(OPTICAL_PIN, INPUT); // Init optical sensor
+		pinMode(opticalPin_GLOBAL , INPUT); // Init optical sensor
 		
 		for (int INDEX = 0; INDEX < 360; INDEX++)
 		{
@@ -1119,7 +1125,7 @@ extern "C"
 			float proximityADC, proximityV;
 
 			// Read in the ADC and convert it to a voltage:
-			proximityADC = analogRead(OPTICAL_PIN);
+			proximityADC = analogRead(opticalPin_GLOBAL);
 			proximityV = (float)proximityADC * 5.0 / 1023.0;
 
 			//  delay(100);

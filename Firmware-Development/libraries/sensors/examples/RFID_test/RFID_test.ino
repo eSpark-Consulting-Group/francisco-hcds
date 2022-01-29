@@ -18,6 +18,14 @@ cartridges_t cartridge;
 
 void setup() {
   // put your setup code here, to run once:
+
+  // Configuring sensor pins
+  setTrayRFIDPins(SS_1_PIN, RST_1_PIN);
+  setCartridgeRFIDPins(SS_2_PIN, RST_2_PIN);
+  setCartridgeServoPin(CART_SERVO_PIN);
+  setDispenserServoPin(DIS_SERVO_PIN);
+  setOpticalPin(OPTICAL_PIN);
+  setHX711Pins(DOUT_HX711, CLK_HX711);
   
   processCartridges(&cartridge);
 }
