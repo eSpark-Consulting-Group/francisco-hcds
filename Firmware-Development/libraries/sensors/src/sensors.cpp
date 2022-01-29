@@ -7,6 +7,8 @@ uint32_t DOUT_GLOBAL = NULL;
 uint32_t CLK_GLOBAL = NULL;
 uint32_t CS_GLOBAL = NULL;
 uint32_t RST_GLOBAL = NULL;
+
+uint32_t 
 float SCALE = 1;
 SPIClass* mySPI;
 Uid uid;
@@ -23,15 +25,14 @@ extern "C"
 	 *	@return: status, SUCCESS or FAILED
 	 *********************************************************************************/
 	 
-	uint8_t initHX711(uint32_t DOUT, uint32_t CLK, uint8_t gain)
+	uint8_t initHX711(uint8_t gain)
 	{
-		pinMode(CLK, OUTPUT);
-		pinMode(DOUT, INPUT_PULLUP);
-		
-		DOUT_GLOBAL = DOUT;
-		CLK_GLOBAL = CLK;
+		pinMode(CLK_GLOBAL, OUTPUT);
+		pinMode(DOUT_GLOBAL, INPUT_PULLUP);
 		
 		setGain(gain);
+		
+		tare();
 		
 		return SUCCESS;
 	}
@@ -67,6 +68,9 @@ extern "C"
 	 
 	uint8_t tare(uint8_t times)
 	{
+		double sum = read_average(times);
+		set_offset(sum);
+		
 		return SUCCESS;
 	}
 	
@@ -81,6 +85,11 @@ extern "C"
 	static void setGain(uint8_t gain)
 	{
 		GAIN = gain;
+	}
+	
+	static void set_offset(long offset) 
+	{
+		OFFSET = offset;
 	}
 	
 	/*********************************************************************************
@@ -202,11 +211,18 @@ extern "C"
 	
 	uint8_t processCartridges(cartridges_t* cartridge)
 	{
+		
 		Servo servo;
 		
+		// Initialize HX711 weight sensor
+		initHX711();
+		
+		// Cartridge RFID
 		initServo(&servo, CART_SERVO_PIN);
 		initRFID(SS_1_PIN, RST_1_PIN);
+		PCD_Init();
 		readRFIDs(&servo, cartridge);
+		deleteRFID();
 	}
 	
 	/*********************************************************************************
@@ -217,7 +233,14 @@ extern "C"
 	
 	uint8_t isTrayPlaced()
 	{
+		// Tray RFID
+		initRFID(SS_2_PIN, RST_2_PIN);
+		PCD_Init();
+		uint8_t	result = PICC_IsNewCardPresent();
 		
+		deleteRFID();
+		
+		return result;
 	}
 	
 	/*********************************************************************************
@@ -229,8 +252,15 @@ extern "C"
 	 *	@return: status, SUCCESS or FAILED
 	 *********************************************************************************/
 	
-	uint8_t moveToCartridge(colors color_id)
+	uint8_t moveToCartridge(colors color_id, cartridges_t* cartridge)
 	{
+		Servo servo;
+		
+		cartridge->color_selected = color_id;
+		
+		initServo(&servo, CART_SERVO_PIN);
+		servo.write(cartridge->degreesOfColors[color_id]);
+		
 		return SUCCESS;
 	}
 	
@@ -243,10 +273,89 @@ extern "C"
 	 *	@return: status, SUCCESS or FAILED
 	 *********************************************************************************/
 	
-	uint8_t dispenseColor(int quantity)
+	uint8_t dispenseColor(int quantity, cartridges_t* cartridge)
 	{
+		Servo servo;
+		initServo(&servo, DIS_SERVO_PIN);
+		
+		colors color_choosen = cartridge->color_selected;
+		while(true)
+		{
+			float grams;
+			getGrams(&grams);
+			
+			if((quantity > 0) && (cartridge->quantityAvailable[color_choosen] >= quantity))
+			{
+				if(grams < (0.8 * quantity))
+				{
+					servo.write(30);
+				}else if((grams >= (0.8 * quantity)) && (grams < quantity))
+				{
+					servo.write(30);
+					
+					delay(100);
+					
+					servo.write(0);
+					
+					delay(500);
+					
+				}else if(grams >= quantity)
+				{
+					servo.write(0);
+					cartridge->quantityAvailable[color_choosen] -= quantity;
+					break;
+				}
+			}
+
+		}
+		
 		return SUCCESS;
 	}
+	
+	uint8_t setTrayRFIDPins(uint32_t CS_PIN, uint32_t RST_PIN);
+	{
+		CS_Tray_GLOBAL = CS_PIN;
+		RST_Tray_GLOBAL = RST_PIN;
+		
+		return SUCCESS;
+	}
+	
+	uint8_t setCartridgeRFIDPins(uint32_t CS_PIN, uint32_t RST_PIN)
+	{
+		CS_Cartridge_GLOBAL = CS_PIN;
+		RST_Cartridge_GLOBAL = RST_PIN;
+		
+		return SUCCESS;
+	}
+	
+	uint8_t setCartridgeServoPin(uint32_t SERVO_PIN)
+	{
+		cartridgeServoPin = SERVO_PIN;
+		return SUCCESS;
+	}
+	
+	uint8_t setDispenserServoPin(uint32_t SERVO_PIN)
+	{
+		dispenserServoPin = SERVO_PIN;
+		
+		return SUCCESS;
+	}
+	
+	uint8_t setOpticalPin(uint32_t OPTICAL_PIN)
+	{
+		opticalPin = OPTICAL_PIN;
+		
+		return SUCCESS;
+	}
+	
+	uint8_t setHX711Pins(uint32_t DOUT, uint32_t CLK)
+	{
+		DOUT_GLOBAL = DOUT;
+		CLK_GLOBAL = CLK;
+		
+		return SUCCESS;
+	}
+	
 	
 	static uint8_t initRFID(uint32_t CS, uint32_t RST)
 	{
@@ -256,8 +365,6 @@ extern "C"
 		mySPI = new SPIClass();
 		
 		mySPI->begin();
-		
-		PCD_Init();
 	}
 	
 	static uint8_t PCD_Init()
@@ -776,7 +883,7 @@ extern "C"
 	static uint8_t initServo(Servo* servo, uint32_t servo_pin)
 	{
 		servo->attach(servo_pin, 600, 2300);
-		servo->write(0);
+		//servo->write(0);
 	}
 	
 	static uint8_t PICC_ReadCardSerial() {
@@ -1048,6 +1155,7 @@ extern "C"
 
 				{
 				  cartridge->degreesOfColors[color] = pos;
+				  break;
 				}
 			  }
 			}
@@ -1313,6 +1421,11 @@ extern "C"
 
 		// 89ms passed and nothing happened. Communication with the MFRC522 might be down.
 		return STATUS_TIMEOUT;
+	}
+	
+	static uint8_t deleteRFID()
+	{
+		delete mySPI;
 	}
 	
 }

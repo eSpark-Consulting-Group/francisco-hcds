@@ -13,19 +13,6 @@
 
 #define MFRC522_SPICLOCK (4000000u)	// MFRC522 accept upto 10MHz, set to 4MHz.
 
-#define DOUT_HX711  32
-#define CLK_HX711  33
-
-
-#define SS_1_PIN 13
-#define RST_1_PIN 22
-#define SS_2_PIN 15
-#define RST_2_PIN 21
-
-#define CART_SERVO_PIN  27
-
-#define OPTICAL_PIN 34
-
 // structs and variables
 typedef enum : uint8_t
 {
@@ -44,9 +31,9 @@ typedef enum : uint8_t
 
 typedef struct
 {	
-	int degreesOfColors[11] = {0.};
+	int degreesOfColors[11] = {0};
 	colors color_selected;
-	float quantityAvailable[11] = {0.0};
+	float quantityAvailable[11] = {100.0};
 }cartridges_t;
 
 // Size of the MFRC522 FIFO
@@ -241,16 +228,24 @@ extern "C"
 	
 	// Public functions
 	
+	// Config functions
+	uint8_t setTrayRFIDPins(uint32_t CS_PIN, uint32_t RST_PIN);
+	uint8_t setCartridgeRFIDPins(uint32_t CS_PIN, uint32_t RST_PIN);
+	uint8_t setCartridgeServoPin(uint32_t SERVO_PIN);
+	uint8_t setDispenserServoPin(uint32_t SERVO_PIN);
+	uint8_t setOpticalPin(uint32_t OPTICAL_PIN);
+	uint8_t setHX711Pins(uint32_t DOUT, uint32_t CLK);
+	
 	// HX711 functions
-	uint8_t initHX711(uint32_t DOUT = DOUT_HX711, uint32_t CLK = CLK_HX711, uint8_t gain = 128);
+	uint8_t initHX711(uint8_t gain = 128);
 	uint8_t getGrams(float* grams, uint8_t times = 1);
 	uint8_t tare(uint8_t times = 10);
 	
 	// Cartridge functions
 	uint8_t processCartridges(cartridges_t* cartridge);
 	uint8_t isTrayPlaced();
-	uint8_t moveToCartridge(colors color_id);
-	uint8_t dispenseColor(int quantity);
+	uint8_t moveToCartridge(colors color_id, cartridges_t* cartridge);
+	uint8_t dispenseColor(int quantity, cartridges_t* cartridge);
 	
 	// Private functions
 	
@@ -262,6 +257,7 @@ extern "C"
 	static long read_average(uint8_t times = 10);
 	static void wait_ready(unsigned long delay_ms = 0);
 	static uint8_t is_ready();
+	static void set_offset(long offset); 
 	
 	// Cartridge functions
 	static uint8_t initRFID(uint32_t CS, uint32_t RST);
@@ -293,4 +289,5 @@ extern "C"
 	static StatusCode PCD_Authenticate(uint8_t command, uint8_t blockAddr, MIFARE_Key *key, Uid *uid);
 	static void PCD_StopCrypto1();
 	static StatusCode PICC_Select(Uid *uid, uint8_t validBits = 0);
+	static uint8_t deleteRFID();
 }
