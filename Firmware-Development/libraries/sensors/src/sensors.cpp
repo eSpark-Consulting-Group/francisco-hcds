@@ -224,7 +224,7 @@ extern "C"
 		initHX711();
 		
 		// Cartridge RFID
-		initServo(&servo, opticalPin_GLOBAL );
+		initServo(&servo, opticalPin_GLOBAL);
 		initRFID(CS_Cartridge_GLOBAL, RST_Cartridge_GLOBAL );
 		PCD_Init();
 		readRFIDs(&servo, cartridge);
@@ -239,12 +239,27 @@ extern "C"
 	
 	uint8_t isTrayPlaced()
 	{
+		
 		// Tray RFID
-		initRFID(CS_Tray_GLOBAL , RST_Tray_GLOBAL );
+		initRFID(CS_Tray_GLOBAL , RST_Tray_GLOBAL);
 		PCD_Init();
+		
+		//SPI.begin();
+		//mySPI = new SPIClass(VSPI);
+		//mySPI->begin();
+		
+		/*uint8_t ver = PCD_ReadRegister(VersionReg);
+		while(true)
+		{
+			Serial.println("Version");
+			Serial.println(ver);
+			
+			delay(500);
+		}*/
+
 		uint8_t	result = PICC_IsNewCardPresent();
 		
-		deleteRFID();
+		//deleteRFID();
 		
 		return result;
 	}
@@ -368,7 +383,10 @@ extern "C"
 		CS_GLOBAL = CS;
 		RST_GLOBAL = RST;
 		
-		mySPI = new SPIClass();
+		pinMode(CS_GLOBAL, OUTPUT);
+		pinMode(RST_GLOBAL, OUTPUT);
+		
+		mySPI = new SPIClass(VSPI);
 		
 		mySPI->begin();
 	}
@@ -379,6 +397,7 @@ extern "C"
 		
 		pinMode(CS_GLOBAL, OUTPUT);
 		digitalWrite(CS_GLOBAL, HIGH);
+		
 		
 		if(RST_GLOBAL != NULL)
 		{
@@ -434,6 +453,8 @@ extern "C"
 		
 		digitalWrite(CS_GLOBAL, HIGH);
 		mySPI->endTransaction();
+		
+		return SUCCESS;
 	}
 	
 	static void PCD_WriteRegister2(PCD_Register reg, byte count, byte *values)
@@ -450,6 +471,9 @@ extern "C"
 	
 	static uint8_t PCD_ReadRegister(PCD_Register reg)
 	{
+		
+		//SPIClass testSPI;
+		
 		uint8_t value;
 		
 		mySPI->beginTransaction(SPISettings(MFRC522_SPICLOCK, MSBFIRST, SPI_MODE0));
@@ -462,6 +486,24 @@ extern "C"
 		digitalWrite(CS_GLOBAL, HIGH);
 		
 		mySPI->endTransaction();
+	
+		
+		/*SPI.beginTransaction(SPISettings(MFRC522_SPICLOCK, MSBFIRST, SPI_MODE0));
+		
+		digitalWrite(CS_GLOBAL, LOW);
+		
+		SPI.transfer(0x80 | reg);
+		value = SPI.transfer(0);
+		
+		Serial.println("Register");
+		Serial.println(reg);
+		
+		Serial.println("Read reg");
+		Serial.println(value);
+		
+		digitalWrite(CS_GLOBAL, HIGH);
+		
+		SPI.endTransaction();*/
 		
 		return value;
 	}
@@ -1287,6 +1329,7 @@ extern "C"
 		PCD_ClearRegisterBitMask(CollReg, 0x80);		// ValuesAfterColl=1 => Bits received after collision are cleared.
 		validBits = 7;									// For REQA and WUPA we need the short frame format - transmit only 7 bits of the last (and only) byte. TxLastBits = BitFramingReg[2..0]
 		status = PCD_TransceiveData(&command, 1, bufferATQA, bufferSize, &validBits);
+		
 		if (status != STATUS_OK) {
 			return status;
 		}

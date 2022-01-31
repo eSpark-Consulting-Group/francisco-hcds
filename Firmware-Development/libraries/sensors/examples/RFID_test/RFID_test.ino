@@ -19,6 +19,8 @@ cartridges_t cartridge;
 void setup() {
   // put your setup code here, to run once:
 
+  Serial.begin(115200);
+
   // Configuring sensor pins
   setTrayRFIDPins(SS_1_PIN, RST_1_PIN);
   setCartridgeRFIDPins(SS_2_PIN, RST_2_PIN);
@@ -27,21 +29,21 @@ void setup() {
   setOpticalPin(OPTICAL_PIN);
   setHX711Pins(DOUT_HX711, CLK_HX711);
   
-  processCartridges(&cartridge);
+  //processCartridges(&cartridge);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
 
   // Color will be selected with App
-  moveToCartridge(RED, &cartridge);
+  //moveToCartridge(RED, &cartridge);
   
   if(isTrayPlaced())
   {
     Serial.println("Tray is present");
 
     //Dispense specified color
-    dispenseColor(10, &cartridge);
+    //dispenseColor(10, &cartridge);
   }else
   {
     Serial.println("Tray is not present");
