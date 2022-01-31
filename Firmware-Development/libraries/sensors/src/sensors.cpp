@@ -221,14 +221,14 @@ extern "C"
 		Servo servo;
 		
 		// Initialize HX711 weight sensor
-		initHX711();
+		//initHX711();
 		
 		// Cartridge RFID
-		initServo(&servo, opticalPin_GLOBAL);
-		initRFID(CS_Cartridge_GLOBAL, RST_Cartridge_GLOBAL );
+		initServo(&servo, cartridgeServoPin_GLOBAL);
+		initRFID(CS_Cartridge_GLOBAL, RST_Cartridge_GLOBAL);
 		PCD_Init();
 		readRFIDs(&servo, cartridge);
-		deleteRFID();
+		//deleteRFID();
 	}
 	
 	/*********************************************************************************
@@ -1186,12 +1186,11 @@ extern "C"
 
 			Serial.println("");*/
 
-			if ((PICC_IsNewCardPresent()) && (proximityV < 20))
+			/*if ((PICC_IsNewCardPresent()) && (proximityV < 20))
 			{
 			  //getCartridgeColor();
 			  getCartridgeColor(cartridge);
-			  /*Serial.print("a = ");
-			  Serial.println(a);*/
+			  
 
 			  //Serial.println("RFID + OPTICAL DETECTED");
 
@@ -1206,7 +1205,7 @@ extern "C"
 				  break;
 				}
 			  }
-			}
+			}*/
 	  }
 	}
 	

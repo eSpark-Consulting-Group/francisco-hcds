@@ -28,8 +28,8 @@ void setup() {
   setDispenserServoPin(DIS_SERVO_PIN);
   setOpticalPin(OPTICAL_PIN);
   setHX711Pins(DOUT_HX711, CLK_HX711);
-  
-  //processCartridges(&cartridge);
+
+  processCartridges(&cartridge);
 }
 
 void loop() {
@@ -37,14 +37,15 @@ void loop() {
 
   // Color will be selected with App
   //moveToCartridge(RED, &cartridge);
-  
-  if(isTrayPlaced())
+
+  //if(isTrayPlaced())
+  if (true)
   {
     Serial.println("Tray is present");
 
     //Dispense specified color
     //dispenseColor(10, &cartridge);
-  }else
+  } else
   {
     Serial.println("Tray is not present");
   }
