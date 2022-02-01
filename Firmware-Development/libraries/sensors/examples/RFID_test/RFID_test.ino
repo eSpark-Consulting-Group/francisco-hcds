@@ -36,10 +36,10 @@ void loop() {
   // put your main code here, to run repeatedly:
 
   // Color will be selected with App
-  //moveToCartridge(RED, &cartridge);
+  moveToCartridge(GREEN, &cartridge);
 
-  //if(isTrayPlaced())
-  if (true)
+  if(isTrayPlaced())
+  //if (true)
   {
     Serial.println("Tray is present");
 

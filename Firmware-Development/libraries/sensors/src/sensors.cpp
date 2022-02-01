@@ -228,7 +228,7 @@ extern "C"
 		initRFID(CS_Cartridge_GLOBAL, RST_Cartridge_GLOBAL);
 		PCD_Init();
 		readRFIDs(&servo, cartridge);
-		//deleteRFID();
+		deleteRFID();
 	}
 	
 	/*********************************************************************************
@@ -259,7 +259,7 @@ extern "C"
 
 		uint8_t	result = PICC_IsNewCardPresent();
 		
-		//deleteRFID();
+		deleteRFID();
 		
 		return result;
 	}
@@ -279,7 +279,8 @@ extern "C"
 		
 		cartridge->color_selected = color_id;
 		
-		initServo(&servo, opticalPin_GLOBAL);
+		initServo(&servo, cartridgeServoPin_GLOBAL);
+		
 		servo.write(cartridge->degreesOfColors[color_id]);
 		
 		return SUCCESS;
@@ -1164,11 +1165,9 @@ extern "C"
 
 			delay(20);
 			
-			float proximityADC, proximityV;
+			float proximityADC;
 
-			// Read in the ADC and convert it to a voltage:
 			proximityADC = analogRead(opticalPin_GLOBAL);
-			proximityV = (float)proximityADC * 5.0 / 1023.0;
 
 			//  delay(100);
 
@@ -1186,52 +1185,24 @@ extern "C"
 
 			Serial.println("");*/
 
-			/*if ((PICC_IsNewCardPresent()) && (proximityV < 20))
+			if ((PICC_IsNewCardPresent()) && (proximityADC < 2000))
+			//if (proximityADC < 1000)
 			{
-			  //getCartridgeColor();
-			  getCartridgeColor(cartridge);
-			  
-
-			  //Serial.println("RFID + OPTICAL DETECTED");
-
-			  for (int color = RED; color <= LIGHTENER; color++)
-
-			  {
-
-				if (cartridge->color_selected ==  color)
-
-				{
-				  cartridge->degreesOfColors[color] = pos;
-				  break;
-				}
-			  }
-			}*/
+				
+			  readAndSetColor(cartridge, pos);
+			  Serial.println("RFID + OPTICAL DETECTED");
+			}
 	  }
+	  
+	  return SUCCESS;
 	}
 	
-	uint8_t getCartridgeColor(cartridges_t* cartridge)
+	static uint8_t readAndSetColor(cartridges_t* cartridge, int pos)
 	{
 
 	  //Serial.println("In getCartridgeColor Function");
 
-	  String threeBytes = "";
-
-	  String colorName = "";
-	  
-	  String temp_CID;
-	  
-	  String CIDS[11] = {"806", "733", "694", "123", "123", "123", "123", "793", "123", "123", "19b"};
-
-	  int color_r = 0;
-
-	  if (!PICC_IsNewCardPresent()) {
-
-		Serial.println("IsNewcCardPresent");
-
-		return 0;
-
-	  }
-
+	  int color_id = 0;
 
 	  // Select one of the cards
 
@@ -1241,55 +1212,84 @@ extern "C"
 
 	  }
 
-	  PICC_DumpToSerial(&(uid));
+	  //PICC_DumpToSerial(&(uid));
 
-	  Serial.println("UID");
+	  color_id = ((uid.uidByte[0] << 4) | ((uid.uidByte[1] & 0xF0) >> 4));
+	  
+	  Serial.println("Color id");
+	  Serial.println(color_id, HEX);
 
-	  temp_CID = "";
-
-
-	  for (uint8_t i = 0; i < uid.size; i++) {
-
-		if (uid.uidByte[i] < 0x10)
-
-		  //Serial.print(F("0"));
-
-		  temp_CID += "0";
-
-		else
-
-		  //Serial.print(F(""));
-
-		  temp_CID += "";
-
-		//Serial.print(rfid_1.uid.uidByte[(rfid_1.uid.size - 1) - i], HEX);
-
-		temp_CID += String(uid.uidByte[i], HEX);
-
-	  }
-
-	  threeBytes = temp_CID.substring(0, 3);
-
-	  // Search Color
-	  for (uint8_t color = RED; color <= LIGHTENER; color++)
-
+	  
+	  // Search color
+	  switch(color_id)
 	  {
-		if (threeBytes == CIDS[color])
-		{
-		  cartridge->color_selected = (colors)color;
-		}
-
+		  case RED:
+			  Serial.println("Red Color");
+			  cartridge->color_selected = RED;
+			  cartridge->degreesOfColors[0] = pos;
+			  break;
+		  
+		  case YELLOW:
+			  Serial.println("Yellow Color");
+			  cartridge->color_selected = YELLOW;
+			  cartridge->degreesOfColors[1] = pos;
+			  break;
+		  
+		  case GREEN:
+			  Serial.println("Green Color");
+			  cartridge->color_selected = GREEN;
+			  cartridge->degreesOfColors[2] = pos;
+			  break;
+		  
+		  case PINK:
+			  Serial.println("Pink Color");
+			  cartridge->color_selected = PINK;
+			  cartridge->degreesOfColors[3] = pos;
+			  break;
+		  
+		  case BLACK:
+			  Serial.println("Black Color");
+			  cartridge->color_selected = BLACK;
+			  cartridge->degreesOfColors[4] = pos;
+			  break;
+		  
+		  case AQUA:
+			  Serial.println("Aqua Color");
+			  cartridge->color_selected = AQUA;
+			  cartridge->degreesOfColors[5] = pos;
+			  break;
+		  
+		  case AERO_BLUE:
+			  Serial.println("Aero Blue Color");
+			  cartridge->color_selected = AERO_BLUE;
+			  cartridge->degreesOfColors[6] = pos;
+			  break;
+		  
+		  case BLUE:
+			  Serial.println("Blue Color");
+			  cartridge->color_selected = BLUE;
+			  cartridge->degreesOfColors[7] = pos;
+			  break;
+		  
+		  case MAGNETA:
+			  Serial.println("Magneta Color");
+			  cartridge->color_selected = MAGNETA;
+			  cartridge->degreesOfColors[8] = pos;
+			  break;
+		  
+		  case GOLD:
+			  Serial.println("Gold Color");
+			  cartridge->color_selected = GOLD;
+			  cartridge->degreesOfColors[9] = pos;
+			  break;
+		  
+		  case LIGHTENER:
+			  Serial.println("Lightener Color");
+			  cartridge->color_selected = LIGHTENER;
+			  cartridge->degreesOfColors[10] = pos;
+			  break;
+		  
 	  }
-
-	  Serial.println(temp_CID);
-
-	  Serial.println(threeBytes);
-
-	  Serial.println(color_r);
-
-	  Serial.println(colorName);
-
-	  Serial.println("End getCartridge Fucntion");
 
 	  return SUCCESS;
 

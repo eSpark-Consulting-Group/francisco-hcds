@@ -14,19 +14,19 @@
 #define MFRC522_SPICLOCK (4000000u)	// MFRC522 accept upto 10MHz, set to 4MHz.
 
 // structs and variables
-typedef enum : uint8_t
+typedef enum : uint16_t
 {
-	RED = 1,
-	YELLOW,
-	GREEN,
-	PINK,
-	BLACK,
-	AQUA,
-	AERO_BLUE,
-	BLUE,
-	MAGNETA,
-	GOLD,
-	LIGHTENER,
+	RED = 0x806,
+	YELLOW = 0x733,
+	GREEN = 0x694,
+	PINK = 0x123,
+	BLACK = 0x125,
+	AQUA = 0x124,
+	AERO_BLUE = 0x793,
+	BLUE = 0x19b,
+	MAGNETA = 0x150,
+	GOLD = 0x155,
+	LIGHTENER = 0x190,
 }colors;
 
 typedef struct
@@ -276,7 +276,7 @@ extern "C"
 	static StatusCode PCD_CalculateCRC(uint8_t *data, uint8_t length, uint8_t *result);
 	static uint8_t initServo(Servo* servo, uint32_t servo_pin);
 	static uint8_t readRFIDs(Servo* servo, cartridges_t* cartridge);
-	static uint8_t getCartridgeColor(cartridges_t* cartridge);
+	static uint8_t readAndSetColor(cartridges_t* cartridge, int pos);
 	static void PCD_SetRegisterBitMask(PCD_Register reg, uint8_t mask);
 	static void PICC_DumpToSerial(Uid *uid);
 	static void PICC_DumpDetailsToSerial(Uid *uid);
