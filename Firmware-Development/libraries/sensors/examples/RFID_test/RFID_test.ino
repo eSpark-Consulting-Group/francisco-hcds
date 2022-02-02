@@ -1,7 +1,7 @@
 #include "sensors.h"
 
-#define DOUT_HX711  32
-#define CLK_HX711  33
+#define DOUT_HX711  2
+#define CLK_HX711  4
 
 #define SS_1_PIN 13
 #define RST_1_PIN 22
@@ -50,4 +50,6 @@ void loop() {
     Serial.println("Tray is not present");
   }
   delay(1000);
+
+  moveToCartridge(AERO_BLUE, &cartridge);
 }

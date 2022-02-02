@@ -80,10 +80,17 @@ extern "C"
 		return SUCCESS;
 	}
 	
+	uint8_t set_scale(float scale)
+	{
+		SCALE = scale;
+		
+		return SUCCESS;
+	}
+	
 	/*********************************************************************************
-	 *	@purpose: tare scale
+	 *	@purpose: set gain
 	 *	
-	 *	@times: number of times to tare
+	 *	@gain: gain to set
 	 *
 	 *	@return: status, SUCCESS or FAILED
 	 *********************************************************************************/
@@ -97,6 +104,7 @@ extern "C"
 	{
 		OFFSET = offset;
 	}
+	
 	
 	/*********************************************************************************
 	 *	@purpose: get weight sensor value
@@ -221,7 +229,9 @@ extern "C"
 		Servo servo;
 		
 		// Initialize HX711 weight sensor
-		//initHX711();
+		initHX711();
+		servo.setPeriodHertz(50); // standard 50 hz servo
+		
 		
 		// Cartridge RFID
 		initServo(&servo, cartridgeServoPin_GLOBAL);
@@ -275,13 +285,95 @@ extern "C"
 	
 	uint8_t moveToCartridge(colors color_id, cartridges_t* cartridge)
 	{
-		Servo servo;
 		
-		cartridge->color_selected = color_id;
+	  Servo servo;
 		
-		initServo(&servo, cartridgeServoPin_GLOBAL);
+	  cartridge->color_selected = color_id;
 		
-		servo.write(cartridge->degreesOfColors[color_id]);
+	  initServo(&servo, cartridgeServoPin_GLOBAL);
+		
+		
+	  switch(color_id)
+	  {
+		  case RED:
+			  Serial.println("Red Color");
+			  Serial.println(cartridge->degreesOfColors[0]);
+			  servo.write(cartridge->degreesOfColors[0]);
+			  delay(1000);
+			  
+			  break;
+		  
+		  case YELLOW:
+			  Serial.println("Yellow Color");
+			  Serial.println(cartridge->degreesOfColors[1]);
+			  servo.write(cartridge->degreesOfColors[1]);
+			  delay(1000);
+			  break;
+		  
+		  case GREEN:
+			  Serial.println("Green Color");
+			  Serial.println(cartridge->degreesOfColors[2]);
+			  servo.write(cartridge->degreesOfColors[2]);
+			  delay(1000);
+			  break;
+		  
+		  case PINK:
+			  Serial.println("Pink Color");
+			  Serial.println(cartridge->degreesOfColors[3]);
+			  servo.write(cartridge->degreesOfColors[3]);
+			  delay(1000);
+			  break;
+		  
+		  case BLACK:
+			  Serial.println("Black Color");
+			  Serial.println(cartridge->degreesOfColors[4]);
+			  servo.write(cartridge->degreesOfColors[4]);
+			  delay(1000);
+			  break;
+		  
+		  case AQUA:
+			  Serial.println("Aqua Color");
+			  Serial.println(cartridge->degreesOfColors[5]);
+			  servo.write(cartridge->degreesOfColors[5]);
+			  delay(1000);
+			  break;
+		  
+		  case AERO_BLUE:
+			  Serial.println("Aero Blue Color");
+			  Serial.println(cartridge->degreesOfColors[6]);
+			  servo.write(cartridge->degreesOfColors[6]);
+			  delay(1000);
+			  break;
+		  
+		  case BLUE:
+			  Serial.println("Blue Color");
+			  Serial.println(cartridge->degreesOfColors[7]);
+			  servo.write(cartridge->degreesOfColors[7]);
+			  delay(1000);
+			  break;
+		  
+		  case MAGNETA:
+			  Serial.println("Magneta Color");
+			  Serial.println(cartridge->degreesOfColors[8]);
+			  servo.write(cartridge->degreesOfColors[8]);
+			  delay(1000);
+			  break;
+		  
+		  case GOLD:
+			  Serial.println("Gold Color");
+			  Serial.println(cartridge->degreesOfColors[9]);
+			  servo.write(cartridge->degreesOfColors[9]);
+			  delay(1000);
+			  break;
+		  
+		  case LIGHTENER:
+			  Serial.println("Lightener Color");
+			  Serial.println(cartridge->degreesOfColors[10]);
+			  servo.write(cartridge->degreesOfColors[10]);
+			  delay(1000);
+			  break;
+		  
+	  }
 		
 		return SUCCESS;
 	}
@@ -1184,15 +1276,16 @@ extern "C"
 			Serial.println(proximityV);
 
 			Serial.println("");*/
-
-			if ((PICC_IsNewCardPresent()) && (proximityADC < 2000))
+			
+		if ((PICC_IsNewCardPresent()) && (proximityADC < 2000))
 			//if (proximityADC < 1000)
 			{
 				
 			  readAndSetColor(cartridge, pos);
 			  Serial.println("RFID + OPTICAL DETECTED");
 			}
-	  }
+		}
+	
 	  
 	  return SUCCESS;
 	}

@@ -240,6 +240,7 @@ extern "C"
 	uint8_t initHX711(uint8_t gain = 128);
 	uint8_t getGrams(float* grams, uint8_t times = 1);
 	uint8_t tare(uint8_t times = 10);
+	uint8_t set_scale(float scale);
 	
 	// Cartridge functions
 	uint8_t processCartridges(cartridges_t* cartridge);
