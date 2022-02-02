@@ -33,7 +33,7 @@ typedef struct
 {	
 	int degreesOfColors[11] = {0};
 	colors color_selected;
-	float quantityAvailable[11] = {100.0};
+	int quantityAvailable[11] = {100};
 }cartridges_t;
 
 // Size of the MFRC522 FIFO

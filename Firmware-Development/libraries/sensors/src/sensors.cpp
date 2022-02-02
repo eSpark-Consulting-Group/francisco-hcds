@@ -232,6 +232,11 @@ extern "C"
 		initHX711();
 		servo.setPeriodHertz(50); // standard 50 hz servo
 		
+		for(int i = 0; i < 11; i++)
+		{
+			cartridge->quantityAvailable[i] = 100;
+		}
+		
 		
 		// Cartridge RFID
 		initServo(&servo, cartridgeServoPin_GLOBAL);
@@ -268,6 +273,7 @@ extern "C"
 		}*/
 
 		uint8_t	result = PICC_IsNewCardPresent();
+		
 		
 		deleteRFID();
 		
@@ -392,22 +398,93 @@ extern "C"
 		Servo servo;
 		initServo(&servo, dispenserServoPin_GLOBAL);
 		
-		colors color_choosen = cartridge->color_selected;
+		int color_choosen = - 1;
+		
+		switch(cartridge->color_selected)
+		{
+			case RED:
+			  Serial.println("Red Color");
+			  color_choosen = 0;
+			  break;
+		  
+		  case YELLOW:
+			  Serial.println("Yellow Color");
+			  color_choosen = 1;
+			  break;
+		  
+		  case GREEN:
+			  Serial.println("Green Color");
+			  color_choosen = 2;
+			  break;
+		  
+		  case PINK:
+			  Serial.println("Pink Color");
+			  color_choosen = 3;
+			  break;
+		  
+		  case BLACK:
+			  Serial.println("Black Color");
+			  color_choosen = 4;
+			  break;
+		  
+		  case AQUA:
+			  Serial.println("Aqua Color");
+			  color_choosen = 5;
+			  break;
+		  
+		  case AERO_BLUE:
+			  Serial.println("Aero Blue Color");
+			  color_choosen = 6;
+			  break;
+		  
+		  case BLUE:
+			  Serial.println("Blue Color");
+			  color_choosen = 7;
+			  break;
+		  
+		  case MAGNETA:
+			  Serial.println("Magneta Color");
+			  color_choosen = 8;
+			  break;
+		  
+		  case GOLD:
+			  Serial.println("Gold Color");
+			  color_choosen = 9;
+			  break;
+		  
+		  case LIGHTENER:
+			  Serial.println("Lightener Color");
+			  color_choosen = 10;
+			  break;
+		}
+		
 		while(true)
 		{
 			float grams;
-			getGrams(&grams);
+			//getGrams(&grams);
+			grams = 0.0;
+			
+			Serial.println("Dispensing");
+			Serial.println(color_choosen);
+			
+			Serial.println("Quantity mentioned");
+			Serial.println(quantity);
+			
+			Serial.println("Quantity available");
+			Serial.println(cartridge->quantityAvailable[color_choosen]);
 			
 			if((quantity > 0) && (cartridge->quantityAvailable[color_choosen] >= quantity))
 			{
+				Serial.println("Inside quantityAvailable if block");
 				if(grams < (0.8 * quantity))
 				{
 					servo.write(30);
+					delay(1000);
 				}else if((grams >= (0.8 * quantity)) && (grams < quantity))
 				{
 					servo.write(30);
 					
-					delay(100);
+					delay(500);
 					
 					servo.write(0);
 					
@@ -1320,66 +1397,77 @@ extern "C"
 			  Serial.println("Red Color");
 			  cartridge->color_selected = RED;
 			  cartridge->degreesOfColors[0] = pos;
+			  cartridge->quantityAvailable[0] = 100;
 			  break;
 		  
 		  case YELLOW:
 			  Serial.println("Yellow Color");
 			  cartridge->color_selected = YELLOW;
 			  cartridge->degreesOfColors[1] = pos;
+			  cartridge->quantityAvailable[1] = 100;
 			  break;
 		  
 		  case GREEN:
 			  Serial.println("Green Color");
 			  cartridge->color_selected = GREEN;
 			  cartridge->degreesOfColors[2] = pos;
+			  cartridge->quantityAvailable[2] = 100;
 			  break;
 		  
 		  case PINK:
 			  Serial.println("Pink Color");
 			  cartridge->color_selected = PINK;
 			  cartridge->degreesOfColors[3] = pos;
+			  cartridge->quantityAvailable[3] = 100;
 			  break;
 		  
 		  case BLACK:
 			  Serial.println("Black Color");
 			  cartridge->color_selected = BLACK;
 			  cartridge->degreesOfColors[4] = pos;
+			  cartridge->quantityAvailable[4] = 100;
 			  break;
 		  
 		  case AQUA:
 			  Serial.println("Aqua Color");
 			  cartridge->color_selected = AQUA;
 			  cartridge->degreesOfColors[5] = pos;
+			  cartridge->quantityAvailable[5] = 100;
 			  break;
 		  
 		  case AERO_BLUE:
 			  Serial.println("Aero Blue Color");
 			  cartridge->color_selected = AERO_BLUE;
 			  cartridge->degreesOfColors[6] = pos;
+			  cartridge->quantityAvailable[6] = 100;
 			  break;
 		  
 		  case BLUE:
 			  Serial.println("Blue Color");
 			  cartridge->color_selected = BLUE;
 			  cartridge->degreesOfColors[7] = pos;
+			  cartridge->quantityAvailable[7] = 100;
 			  break;
 		  
 		  case MAGNETA:
 			  Serial.println("Magneta Color");
 			  cartridge->color_selected = MAGNETA;
 			  cartridge->degreesOfColors[8] = pos;
+			  cartridge->quantityAvailable[8] = 100;
 			  break;
 		  
 		  case GOLD:
 			  Serial.println("Gold Color");
 			  cartridge->color_selected = GOLD;
 			  cartridge->degreesOfColors[9] = pos;
+			  cartridge->quantityAvailable[9] = 100;
 			  break;
 		  
 		  case LIGHTENER:
 			  Serial.println("Lightener Color");
 			  cartridge->color_selected = LIGHTENER;
 			  cartridge->degreesOfColors[10] = pos;
+			  cartridge->quantityAvailable[10] = 100;
 			  break;
 		  
 	  }

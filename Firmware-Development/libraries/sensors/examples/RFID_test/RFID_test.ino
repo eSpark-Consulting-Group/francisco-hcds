@@ -44,7 +44,7 @@ void loop() {
     Serial.println("Tray is present");
 
     //Dispense specified color
-    //dispenseColor(10, &cartridge);
+    dispenseColor(10, &cartridge);
   } else
   {
     Serial.println("Tray is not present");
