@@ -9,6 +9,7 @@ uint8_t oldDeviceConnected = false;
 uint8_t messageReceived = false;
 StaticJsonDocument<200> doc_in;
 StaticJsonDocument<200> doc_out;
+const long interval = 1000;
 
 extern "C"
 {
@@ -41,14 +42,6 @@ extern "C"
 			Serial.println("*********");
 
 			Serial.print("Received Value: ");
-
-			/*for (int i = 0; i < rxValue.length(); i++) {
-
-			  Serial.print(rxValue[i]);
-
-			  s += rxValue[i];
-
-			}*/
 			
 			const char* rcvdJson = rxValue.c_str();
 			
@@ -57,33 +50,6 @@ extern "C"
 
 
 			deserializeJson(doc_in, rcvdJson);
-			//const char* C_COLOR = doc_in["COLOR"];
-			//COLOR = String(C_COLOR);
-			//QUANTITY = doc_in["QUANTITY"];
-
-			/*     byte x = s.indexOf(',');
-
-				 COLOR = s.substring(0, x);
-
-				 QTY = s.substring(x + 1, sizeof(s) - 1);
-
-				 QUANTITY = QTY.toFloat();*/
-
-			/*Serial.println("");
-
-			Serial.println("");
-
-			Serial.print("COLOR : ");
-
-			Serial.println(COLOR);
-
-			Serial.print("QUANTITY : ");
-
-			Serial.println(QUANTITY);
-
-			Serial.println("");
-
-			Serial.println("");*/
 
 		  }
 
@@ -103,19 +69,28 @@ extern "C"
 		return SUCCESS;
 	}
 	
-	uint8_t updateAppwithStatus(char* status)
+	uint8_t checkMessageAndUpdateStatus(int grams_available)
 	{
-		return SUCCESS;
-	}
-	
-	uint8_t checkMessage()
-	{
-		if(messageReceived)
+		if(grams_available > 20)
 		{
-			messageReceived = false;
+			if(messageReceived)
+			{
+				delay(100);
+				
+				updateStatus(dispensing);
+				
+				messageReceived = false;
+				
+				return SUCCESS;
+			}else{
+				
+				updateStatus(ready);
+				return FAILED;
+			}
 			
-			return SUCCESS;
-		}else{
+		}else
+		{
+			updateStatus(refill);
 			
 			return FAILED;
 		}
@@ -128,6 +103,19 @@ extern "C"
 		
 		
 		return SUCCESS;
+	}
+	
+	static uint8_t updateStatus(status current_status)
+	{
+		std::string SEND_STATUS_BLE;
+		
+		doc_out["STATUS"] = (int)current_status;
+		serializeJson(doc_out, SEND_STATUS_BLE);
+		Serial.println("JSON");
+		Serial.println(SEND_STATUS_BLE.c_str());
+		pTxCharacteristic->setValue(SEND_STATUS_BLE);
+		pTxCharacteristic->notify();
+		
 	}
 	
 	static uint8_t createBLEDevice()

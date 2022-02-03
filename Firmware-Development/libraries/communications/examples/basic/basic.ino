@@ -1,4 +1,5 @@
-#include "communications.h"
+//#include "communications.h"
+#include "sensors.h"
 
 int color_id;
 int quantity;
@@ -14,7 +15,7 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
 
-  if(checkMessage())
+  if(checkMessageAndUpdateStatus(25))
   {
     getColorIDAndQuantity(&color_id, &quantity);
     Serial.println("BLE message received");
@@ -28,6 +29,8 @@ void loop() {
   {
     Serial.println("Message not received");
   }
+
+  
 
   delay(1000);
 }

@@ -1,6 +1,10 @@
 #include "Arduino.h"
 #include "ArduinoJson.h"
 
+#ifndef COMMS
+#define COMMS
+#endif
+
 #include "BLEDevice.h"
 #include "BLEServer.h"
 #include "BLEUtils.h"
@@ -16,13 +20,19 @@
 #define TRUE 1
 #define FALSE 0
 
+typedef enum
+{
+	ready = 1,
+	dispensing,
+	refill,
+}status;
+
 
 extern "C"
 {
 	// Public functions
 	uint8_t initBLE();
-	uint8_t checkMessage();
-	uint8_t updateAppwithStatus(char* status);
+	uint8_t checkMessageAndUpdateStatus(int grams_available);
 	uint8_t getColorIDAndQuantity(int* color, int* quantity);
 	
 	// Private functions
@@ -30,6 +40,7 @@ extern "C"
 	static uint8_t createBLEService();
 	static uint8_t createBLECharacterstic();
 	static uint8_t startServiceAndAdvertising();
+	static uint8_t updateStatus(status current_status);
 	
 	
 }
