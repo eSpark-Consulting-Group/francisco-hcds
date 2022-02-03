@@ -298,90 +298,14 @@ extern "C"
 		
 	  initServo(&servo, cartridgeServoPin_GLOBAL);
 		
+	  Serial.println("Inside moveToCartridge function");
+	  Serial.println(color_id);
+	
+	  Serial.println(cartridge->degreesOfColors[color_id]);
+	  servo.write(cartridge->degreesOfColors[color_id]);
+	  delay(1000);
 		
-	  switch(color_id)
-	  {
-		  case RED:
-			  Serial.println("Red Color");
-			  Serial.println(cartridge->degreesOfColors[0]);
-			  servo.write(cartridge->degreesOfColors[0]);
-			  delay(1000);
-			  
-			  break;
-		  
-		  case YELLOW:
-			  Serial.println("Yellow Color");
-			  Serial.println(cartridge->degreesOfColors[1]);
-			  servo.write(cartridge->degreesOfColors[1]);
-			  delay(1000);
-			  break;
-		  
-		  case GREEN:
-			  Serial.println("Green Color");
-			  Serial.println(cartridge->degreesOfColors[2]);
-			  servo.write(cartridge->degreesOfColors[2]);
-			  delay(1000);
-			  break;
-		  
-		  case PINK:
-			  Serial.println("Pink Color");
-			  Serial.println(cartridge->degreesOfColors[3]);
-			  servo.write(cartridge->degreesOfColors[3]);
-			  delay(1000);
-			  break;
-		  
-		  case BLACK:
-			  Serial.println("Black Color");
-			  Serial.println(cartridge->degreesOfColors[4]);
-			  servo.write(cartridge->degreesOfColors[4]);
-			  delay(1000);
-			  break;
-		  
-		  case AQUA:
-			  Serial.println("Aqua Color");
-			  Serial.println(cartridge->degreesOfColors[5]);
-			  servo.write(cartridge->degreesOfColors[5]);
-			  delay(1000);
-			  break;
-		  
-		  case AERO_BLUE:
-			  Serial.println("Aero Blue Color");
-			  Serial.println(cartridge->degreesOfColors[6]);
-			  servo.write(cartridge->degreesOfColors[6]);
-			  delay(1000);
-			  break;
-		  
-		  case BLUE:
-			  Serial.println("Blue Color");
-			  Serial.println(cartridge->degreesOfColors[7]);
-			  servo.write(cartridge->degreesOfColors[7]);
-			  delay(1000);
-			  break;
-		  
-		  case MAGNETA:
-			  Serial.println("Magneta Color");
-			  Serial.println(cartridge->degreesOfColors[8]);
-			  servo.write(cartridge->degreesOfColors[8]);
-			  delay(1000);
-			  break;
-		  
-		  case GOLD:
-			  Serial.println("Gold Color");
-			  Serial.println(cartridge->degreesOfColors[9]);
-			  servo.write(cartridge->degreesOfColors[9]);
-			  delay(1000);
-			  break;
-		  
-		  case LIGHTENER:
-			  Serial.println("Lightener Color");
-			  Serial.println(cartridge->degreesOfColors[10]);
-			  servo.write(cartridge->degreesOfColors[10]);
-			  delay(1000);
-			  break;
-		  
-	  }
-		
-		return SUCCESS;
+	  return SUCCESS;
 	}
 	
 	/*********************************************************************************
@@ -398,71 +322,15 @@ extern "C"
 		Servo servo;
 		initServo(&servo, dispenserServoPin_GLOBAL);
 		
-		int color_choosen = - 1;
-		
-		switch(cartridge->color_selected)
-		{
-			case RED:
-			  Serial.println("Red Color");
-			  color_choosen = 0;
-			  break;
-		  
-		  case YELLOW:
-			  Serial.println("Yellow Color");
-			  color_choosen = 1;
-			  break;
-		  
-		  case GREEN:
-			  Serial.println("Green Color");
-			  color_choosen = 2;
-			  break;
-		  
-		  case PINK:
-			  Serial.println("Pink Color");
-			  color_choosen = 3;
-			  break;
-		  
-		  case BLACK:
-			  Serial.println("Black Color");
-			  color_choosen = 4;
-			  break;
-		  
-		  case AQUA:
-			  Serial.println("Aqua Color");
-			  color_choosen = 5;
-			  break;
-		  
-		  case AERO_BLUE:
-			  Serial.println("Aero Blue Color");
-			  color_choosen = 6;
-			  break;
-		  
-		  case BLUE:
-			  Serial.println("Blue Color");
-			  color_choosen = 7;
-			  break;
-		  
-		  case MAGNETA:
-			  Serial.println("Magneta Color");
-			  color_choosen = 8;
-			  break;
-		  
-		  case GOLD:
-			  Serial.println("Gold Color");
-			  color_choosen = 9;
-			  break;
-		  
-		  case LIGHTENER:
-			  Serial.println("Lightener Color");
-			  color_choosen = 10;
-			  break;
-		}
+		int color_choosen = cartridge->color_selected;
 		
 		while(true)
 		{
 			float grams;
 			//getGrams(&grams);
-			grams = 0.0;
+			grams = 9.0;
+			
+			updateStatus(dispensing);
 			
 			Serial.println("Dispensing");
 			Serial.println(color_choosen);
@@ -657,23 +525,6 @@ extern "C"
 		
 		mySPI->endTransaction();
 	
-		
-		/*SPI.beginTransaction(SPISettings(MFRC522_SPICLOCK, MSBFIRST, SPI_MODE0));
-		
-		digitalWrite(CS_GLOBAL, LOW);
-		
-		SPI.transfer(0x80 | reg);
-		value = SPI.transfer(0);
-		
-		Serial.println("Register");
-		Serial.println(reg);
-		
-		Serial.println("Read reg");
-		Serial.println(value);
-		
-		digitalWrite(CS_GLOBAL, HIGH);
-		
-		SPI.endTransaction();*/
 		
 		return value;
 	}

@@ -3,6 +3,7 @@
 
 int color_id;
 int quantity;
+int quantityAvailable = 25;
 
 void setup() {
   // put your setup code here, to run once:
@@ -15,7 +16,7 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
 
-  if(checkMessageAndUpdateStatus(25))
+  if(checkMessageAndUpdateStatus(quantityAvailable))
   {
     getColorIDAndQuantity(&color_id, &quantity);
     Serial.println("BLE message received");

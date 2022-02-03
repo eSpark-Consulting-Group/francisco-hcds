@@ -14,6 +14,11 @@ const long interval = 1000;
 extern "C"
 {
 
+	/*********************************************************************************
+	 *	@purpose: callback funcion for detecting connection
+	 *	
+	 *********************************************************************************/
+
 	class MyServerCallbacks: public BLEServerCallbacks {
 
 		void onConnect(BLEServer* pServer) {
@@ -29,6 +34,11 @@ extern "C"
 		}
 
 	};
+
+	/*********************************************************************************
+	 *	@purpose: callback funcion for receiving messages
+	 *	
+	 *********************************************************************************/
 
 	class MyCallbacks: public BLECharacteristicCallbacks {
 		
@@ -57,6 +67,11 @@ extern "C"
 
 	};
 	
+	/*********************************************************************************
+	 *	@purpose: initialize BLE
+	 *
+	 *	@return: status, SUCCESS or FAILED
+	 *********************************************************************************/
 
 	uint8_t initBLE()
 	{
@@ -69,6 +84,14 @@ extern "C"
 		return SUCCESS;
 	}
 	
+	/*********************************************************************************
+	 *	@purpose: check message from App and update status to App
+	 *
+	 *	@grams_available: grams available of cartridg
+	 *
+	 *	@return: status, SUCCESS or FAILED
+	 *********************************************************************************/
+	
 	uint8_t checkMessageAndUpdateStatus(int grams_available)
 	{
 		if(grams_available > 20)
@@ -76,8 +99,6 @@ extern "C"
 			if(messageReceived)
 			{
 				delay(100);
-				
-				updateStatus(dispensing);
 				
 				messageReceived = false;
 				
@@ -96,16 +117,31 @@ extern "C"
 		}
 	}
 	
+	/*********************************************************************************
+	 *	@purpose: Get color ID and Quantity from App
+	 *
+	 *	@color_id: reference of pointer variable to store color_id from App
+	 *	@quantity: reference of pointer variable to store quantity from App
+	 *
+	 *	@return: status, SUCCESS or FAILED
+	 *********************************************************************************/
+	
 	uint8_t getColorIDAndQuantity(int* color_id, int* quantity)
 	{
 		*color_id = doc_in["COLOR"];
 		*quantity = doc_in["QUANTITY"];
 		
+		Serial.println("Color");
+		Serial.println(*color_id);
+		
+		Serial.println("Quantity");
+		Serial.println(*quantity);
+		
 		
 		return SUCCESS;
 	}
 	
-	static uint8_t updateStatus(status current_status)
+	uint8_t updateStatus(status current_status)
 	{
 		std::string SEND_STATUS_BLE;
 		

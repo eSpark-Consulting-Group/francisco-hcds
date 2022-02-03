@@ -5,6 +5,11 @@
 #include "SPI.h"
 #include "ESP32Servo.h"
 
+#ifndef COMMS
+	#include "communications.h"
+#endif
+
+
 // Constant macros
 #define FAILED 0
 #define SUCCESS 1
@@ -14,21 +19,6 @@
 #define MFRC522_SPICLOCK (4000000u)	// MFRC522 accept upto 10MHz, set to 4MHz.
 
 // structs and variables
-typedef enum : uint16_t
-{
-	RED = 0x806,
-	YELLOW = 0x733,
-	GREEN = 0x694,
-	PINK = 0x123,
-	BLACK = 0x125,
-	AQUA = 0x124,
-	AERO_BLUE = 0x793,
-	BLUE = 0x19b,
-	MAGNETA = 0x150,
-	GOLD = 0x155,
-	LIGHTENER = 0x190,
-}colors;
-
 typedef struct
 {	
 	int degreesOfColors[11] = {0};
@@ -222,6 +212,7 @@ typedef struct {
 	byte		keyByte[MF_KEY_SIZE];
 } MIFARE_Key;
 
+//extern status;
 
 extern "C"
 {
@@ -291,4 +282,6 @@ extern "C"
 	static void PCD_StopCrypto1();
 	static StatusCode PICC_Select(Uid *uid, uint8_t validBits = 0);
 	static uint8_t deleteRFID();
+	extern uint8_t updateStatus(status current_status);
+	
 }
