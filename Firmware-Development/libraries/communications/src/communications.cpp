@@ -90,6 +90,7 @@ extern "C"
 		}
 
 	};
+	
 
 	uint8_t initBLE()
 	{
@@ -118,6 +119,15 @@ extern "C"
 			
 			return FAILED;
 		}
+	}
+	
+	uint8_t getColorIDAndQuantity(int* color_id, int* quantity)
+	{
+		*color_id = doc_in["COLOR"];
+		*quantity = doc_in["QUANTITY"];
+		
+		
+		return SUCCESS;
 	}
 	
 	static uint8_t createBLEDevice()

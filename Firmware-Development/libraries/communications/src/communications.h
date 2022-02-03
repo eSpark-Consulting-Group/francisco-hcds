@@ -23,6 +23,7 @@ extern "C"
 	uint8_t initBLE();
 	uint8_t checkMessage();
 	uint8_t updateAppwithStatus(char* status);
+	uint8_t getColorIDAndQuantity(int* color, int* quantity);
 	
 	// Private functions
 	static uint8_t createBLEDevice();
