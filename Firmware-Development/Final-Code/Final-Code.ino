@@ -1,724 +1,431 @@
-#include "HX711.h"
+#include <Arduino.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiMulti.h>
+#include <driver/rtc_io.h>
 
-#include <ArduinoJson.h>
 
-#include <MFRC522.h>
+#define uS_TO_S_FACTOR 1000000ULL  /* Conversion factor for micro seconds to seconds */
+#define TIME_TO_SLEEP  15        /* Time ESP32 will go to sleep (in seconds) */
+#define USE_SERIAL Serial
 
-#include <ESP32Servo.h>
+#define BLUE_LED 14
+#define GREEN_LED GPIO_NUM_21
+#define ORANGE_LED GPIO_NUM_20
+#define RED_LED GPIO_NUM_19
 
-#include <BLEDevice.h>
+WiFiMulti wifiMulti;
 
-#include <BLEServer.h>
+String macId = "";
+String url = "http://35.184.38.177:8000/";
 
-#include <BLEUtils.h>
+boolean gpio_interr = false;
+boolean timer_interr = false;
 
-#include <BLE2902.h>
+//RTC_DATA_ATTR
 
-#if defined(ESP8266)|| defined(ESP32) || defined(AVR)
+const int ESP_LED_PIN = 19;
+//const int BUZZER = 12;
+int d = 1;
 
-#include <EEPROM.h>
+const int BATTERY_PIN = 1;
+float BATTERY_VOLTAGE;
+String BATTERY_STATUS;
 
-#endif
 
-#define SS_1_PIN 13
 
-#define RST_1_PIN 22
+//*******************************************************************************
+void measureBattery()
+{
+  int BATTERY_ADC = analogRead(BATTERY_PIN);    //takes ADC value (from 3.3v pin)
 
-#define SS_2_PIN 15
+  float SCALING_FACTOR = 2.3 / 7200;            // Scaling ADC value for 4.5v (AAA battery)
 
-#define RST_2_PIN 21
+  float BATTERY_ADC_VOLTAGE = BATTERY_ADC * SCALING_FACTOR;     //(Latest voltage of AAA battery)
 
-#define DOUT  32
+  float VOLTAGE_CONVERSION_FACTOR = 4.5 / 2.3 ;
 
-#define CLK  33
+  BATTERY_VOLTAGE = BATTERY_ADC_VOLTAGE * VOLTAGE_CONVERSION_FACTOR + 0.5;
 
-HX711 scale;
+  Serial.println("ADC battery voltage");
+  Serial.println(BATTERY_VOLTAGE);
 
-float calibration_factor = 6100; //-7050 worked for my 440lb max scale setup
+  if (BATTERY_VOLTAGE > 3.9)
+  {
+    BATTERY_STATUS = "good";
 
-BLEServer *pServer = NULL;
+    //    digitalWrite(GREEN_LED, LOW);
+    //    digitalWrite(RED_LED, HIGH);
+    //    digitalWrite(ORANGE_LED, HIGH);
 
-BLECharacteristic * pTxCharacteristic;
+    rtc_gpio_set_level(GREEN_LED, LOW);
+    rtc_gpio_set_level(RED_LED, HIGH);
+    rtc_gpio_set_level(ORANGE_LED, HIGH);
 
+  }
 
-bool deviceConnected = false;
+  else if ((BATTERY_VOLTAGE >= 3.3) && (BATTERY_VOLTAGE <= 3.9))
+  {
+    BATTERY_STATUS = "medium";
 
-bool oldDeviceConnected = false;
+    //    digitalWrite(GREEN_LED, HIGH);
+    //    digitalWrite(RED_LED, HIGH);
+    //    digitalWrite(ORANGE_LED, LOW);
 
-String temp_CID = "";
+    rtc_gpio_set_level(GREEN_LED, HIGH);
+    rtc_gpio_set_level(RED_LED, HIGH);
+    rtc_gpio_set_level(ORANGE_LED, LOW);
+  }
 
-String threeBytes = "";
+  else if (BATTERY_VOLTAGE < 3.3)
+  {
+    BATTERY_STATUS = "low";
 
-String CIDS[11] = {"806", "733", "694", "123", "123", "123", "123", "793", "123", "123", "19b"};
+    //    digitalWrite(GREEN_LED, HIGH);
+    //    digitalWrite(RED_LED, LOW);
+    //    digitalWrite(ORANGE_LED, HIGH);
 
-int colors[11] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}; // 11 Color types
+    rtc_gpio_set_level(GREEN_LED, HIGH);
+    rtc_gpio_set_level(RED_LED, LOW);
+    rtc_gpio_set_level(ORANGE_LED, HIGH);
+  }
 
-String color_names[11] = {"Red", "Yellow", "GREEN", "Pink", "Black", "Aqua", "Aero blue", "BLUE", "Magenta", "GOLD", "LIGHTENER"};
+}
 
-int degreesOfColors[11] = {};
 
-int pos = 0;    // variable to store the servo position
+void print_wakeup_reason() {    //*****************************************************************************
+  esp_sleep_wakeup_cause_t wakeup_reason;
 
-// Recommended PWM GPIO pins on the ESP32 include 2,4,12-19,21-23,25-27,32-33
+  wakeup_reason = esp_sleep_get_wakeup_cause();
 
-const int OPTICAL_PIN = 34;
-
-int proximityADC;
-
-float proximityV;
-
-int INDEX = 0;
-
-float QTY_AVAILABLE[11] = {100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
-
-float QUANTITY = 0;
-
-String COLOR;
-
-String QTY;
-
-String SEND_STATUS;
-
-String SEND_STATUS_BLE;
-
-bool READY_FLAG = 0;
-
-int COUNTER = 0;
-
-int COUNTER_COMPLETE = 500;
-
-
-// See the following for generating UUIDs:
-
-// https://www.uuidgenerator.net/
-
-#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E" // UART service UUID
-
-#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
-
-#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
-
-StaticJsonDocument<200> doc_in;
-StaticJsonDocument<200> doc_out;
-
-class MyServerCallbacks: public BLEServerCallbacks {
-
-    void onConnect(BLEServer* pServer) {
-
-      deviceConnected = true;
-
-    };
-
-    void onDisconnect(BLEServer* pServer) {
-
-      deviceConnected = false;
-
-    }
-
-};
-
-class MyCallbacks: public BLECharacteristicCallbacks {
-
-    void onWrite(BLECharacteristic *pCharacteristic) {
-
-      std::string rxValue = pCharacteristic->getValue();
-
-      if (rxValue.length() > 0) {
-
-        Serial.println("*********");
-
-        Serial.print("Received Value: ");
-
-        String s;
-
-        for (int i = 0; i < rxValue.length(); i++) {
-
-          Serial.print(rxValue[i]);
-
-          s += rxValue[i];
-
-        }
-
-        
-        deserializeJson(doc_in, s);
-        const char* C_COLOR = doc_in["COLOR"];
-        COLOR = String(C_COLOR);
-        QUANTITY = doc_in["QUANTITY"];
-
-   /*     byte x = s.indexOf(',');
-
-        COLOR = s.substring(0, x);
-
-        QTY = s.substring(x + 1, sizeof(s) - 1);
-
-        QUANTITY = QTY.toFloat();*/
-
-        Serial.println("");
-
-        Serial.println("");
-
-        Serial.print("COLOR : ");
-
-        Serial.println(COLOR);
-
-        Serial.print("QUANTITY : ");
-
-        Serial.println(QUANTITY);
-
-        Serial.println("");
-
-        Serial.println("");
-
-
+  switch (wakeup_reason)
+  {
+    case ESP_SLEEP_WAKEUP_EXT0 :
+      Serial.println("Wakeup caused by external signal using RTC_IO");
+      gpio_interr = true;
+      break;
+
+    case ESP_SLEEP_WAKEUP_EXT1 :
+      Serial.println("Wakeup caused by external signal using RTC_CNTL");
+      break;
+
+    case ESP_SLEEP_WAKEUP_TIMER :
+      Serial.println("Wakeup caused by timer");
+      timer_interr = true;
+      break;
+
+    case ESP_SLEEP_WAKEUP_TOUCHPAD :
+      Serial.println("Wakeup caused by touchpad");
+      break;
+
+    case ESP_SLEEP_WAKEUP_ULP :
+      Serial.println("Wakeup caused by ULP program");
+      break;
+
+    default :
+      Serial.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason);
+      break;
+  }
+}
+
+//********************************************************************************
+boolean checkMacId(String macId)
+{
+  HTTPClient http;
+  boolean already_added = false;
+
+  Serial.println("Sending request");
+  //  if (WiFi.status() == WL_CONNECTED)
+  //  {
+  Serial.println("Inside request");
+  http.begin(url + "sensor_info/get_sensors_by_id/5b09nPavNJHKx8leuYLK");
+
+  int httpCode = http.GET();
+
+  // httpCode will be negative on error
+  if (httpCode > 0) {
+    // HTTP header has been send and Server response header has been handled
+    USE_SERIAL.printf("[HTTP] GET... code: %d\n", httpCode);
+
+    // file found at server
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = http.getString();
+      USE_SERIAL.println(payload);
+
+      if (payload.indexOf(macId) > 0)
+      {
+        already_added = true;
       }
-
+    } else {
+      USE_SERIAL.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
     }
 
-};
+  }
+
+  http.end();
+  return already_added;
+  // }
+}
+
+//**********************************************************************************
+void createSensor(String macId)
+{
+
+  HTTPClient http;
+  String requestData = "{\"mac_address\":\"" + macId + "\" ,\"rack_block_id\": \"5b09nPavNJHKx8leuYLK\"}";
+
+  USE_SERIAL.print("[HTTP] begin...\n");
+  USE_SERIAL.println(requestData);
+  Serial.println(requestData.length());
+  http.begin(url + "sensor_info/create_sensor"); //HTTP
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Content-Length", String(requestData.length()));
+  int httpCode = http.POST(requestData);
+
+  // httpCode will be negative on error
+  if (httpCode > 0) {
+    // HTTP header has been send and Server response header has been handled
+    USE_SERIAL.printf("[HTTP] POST... code: %d\n", httpCode);
+
+    // file found at server
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = http.getString();
+      USE_SERIAL.println(payload);
+    }
+  } else {
+    USE_SERIAL.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
+
+  http.end();
+}
+
+
+//************************************************************************************
+void Update_Power_Up(String macId)
+{
+  HTTPClient http;
+  //  measureBattery();
+  String requestData = "{\"mac_address_id\":\"" + macId + "\" , \"location_id\":\"PabBqnXhbmASUP9WPHO4\" , \"severity\":\"NULL\" , \"part_damaged\":\"NULL\" , \"notes\":\"NULL\" , \"status\":\"ok\" , \"battery_status\":\"" + BATTERY_STATUS + "\"}";
+
+  USE_SERIAL.print("[HTTP] begin...\n");
+  USE_SERIAL.println(requestData);
+  Serial.println(requestData.length());
+  http.begin(url + "sensor_info/create_incident"); //HTTP
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Content-Length", String(requestData.length()));
+  int httpCode = http.POST(requestData);
+
+  // httpCode will be negative on error
+  if (httpCode > 0) {
+    // HTTP header has been send and Server response header has been handled
+    USE_SERIAL.printf("[HTTP] POST... code: %d\n", httpCode);
+    //  Serial.println("Incident happened" + macId);
+
+    // file found at server
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = http.getString();
+      USE_SERIAL.println(payload);
+    }
+  } else {
+    USE_SERIAL.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
 
+  http.end();
+}
 
-const int SERVO_PIN = 27;
 
-const int SERVO_2_PIN = 5;
+//************************************************************************************
+void Update_Timer(String macId)
+{
+  HTTPClient http;
+  //  measureBattery();
+  String requestData = "{\"mac_address_id\":\"" + macId + "\" , \"location_id\":\"PabBqnXhbmASUP9WPHO4\" , \"severity\":\"NULL\" , \"part_damaged\":\"NULL\" , \"notes\":\"NULL\" , \"status\":\"NULL\" , \"battery_status\":\"" + BATTERY_STATUS + "\"}";
 
-Servo SERVO;
+  USE_SERIAL.print("[HTTP] begin...\n");
+  USE_SERIAL.println(requestData);
+  Serial.println(requestData.length());
+  http.begin(url + "sensor_info/create_incident"); //HTTP
 
-Servo SERVO_2;
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Content-Length", String(requestData.length()));
+  int httpCode = http.POST(requestData);
 
-MFRC522 rfid_1(SS_1_PIN, RST_1_PIN);
+  // httpCode will be negative on error
+  if (httpCode > 0) {
+    // HTTP header has been send and Server response header has been handled
+    USE_SERIAL.printf("[HTTP] POST... code: %d\n", httpCode);
+    //  Serial.println("Incident happened" + macId);
 
-MFRC522 rfid_2(SS_2_PIN, RST_2_PIN);
+    // file found at server
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = http.getString();
+      USE_SERIAL.println(payload);
+    }
+  } else {
+    USE_SERIAL.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
 
-const int calVal_eepromAdress = 0;
+  http.end();
+}
 
-unsigned long t = 0;
 
-float weight = 0;
+//************************************************************************************
+void Update_Shock(String macId)
+{
+  HTTPClient http;
+  //  measureBattery();
+  String requestData = "{\"mac_address_id\":\"" + macId + "\" , \"location_id\":\"PabBqnXhbmASUP9WPHO4\" , \"severity\":\"NULL\" , \"part_damaged\":\"NULL\" , \"notes\":\"NULL\" , \"status\":\"New Impact\" , \"battery_status\":\"NULL\"}";
 
-bool flag_1 = 0;
+  USE_SERIAL.print("[HTTP] begin...\n");
+  USE_SERIAL.println(requestData);
+  Serial.println(requestData.length());
+  http.begin(url + "sensor_info/create_incident"); //HTTP
 
-void setup() {  //**************************************************************************************************************
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Content-Length", String(requestData.length()));
+  int httpCode = http.POST(requestData);
 
+  // httpCode will be negative on error
+  if (httpCode > 0) {
+    // HTTP header has been send and Server response header has been handled
+    USE_SERIAL.printf("[HTTP] POST... code: %d\n", httpCode);
+    //  Serial.println("Incident happened" + macId);
 
-  pinMode(14, OUTPUT);
+    // file found at server
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = http.getString();
+      USE_SERIAL.println(payload);
+    }
+  } else {
+    USE_SERIAL.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
 
-  digitalWrite(14, HIGH);
+  http.end();
+}
 
-  pinMode(35, OUTPUT);
 
-  digitalWrite(35, LOW);
 
-  Serial.begin(57600); delay(10);
 
-  SPI.begin();
+void setup() {  //********************************************************************************************************************************************
 
-  Serial.println("HX711 calibration sketch");
 
-  Serial.println("Remove all weight from scale");
 
-  Serial.println("After readings begin, place known weight on scale");
+  USE_SERIAL.begin(115200);
 
-  Serial.println("Press + or a to increase calibration factor");
+  USE_SERIAL.println();
+  USE_SERIAL.println();
+  USE_SERIAL.println();
 
-  Serial.println("Press - or z to decrease calibration factor");
+  measureBattery();
 
-  scale.begin(DOUT, CLK);
+  wifiMulti.addAP("eSpark Consulting", "47356880"); // SSID and Pass here
 
-  //  scale.set_scale();
 
-  Serial.println("Test");
 
-  //  scale.tare();  //Reset the scale to 0
 
-  Serial.println("Test 2");
 
-  //  long zero_factor = scale.read_average(); //Get a baseline reading
+  pinMode(BLUE_LED, OUTPUT);
+  //  pinMode(RED_LED, OUTPUT);
+  //  pinMode(GREEN_LED, OUTPUT);
+  //  pinMode(ORANGE_LED, OUTPUT);
 
-  //long zero_factor = scale.read_average(); //Get a baseline reading
+  rtc_gpio_init(RED_LED);
+  rtc_gpio_init(GREEN_LED);
+  rtc_gpio_init(ORANGE_LED);
 
+  rtc_gpio_set_direction(RED_LED, RTC_GPIO_MODE_OUTPUT_ONLY);
+  rtc_gpio_set_direction(GREEN_LED, RTC_GPIO_MODE_OUTPUT_ONLY);
+  rtc_gpio_set_direction(ORANGE_LED, RTC_GPIO_MODE_OUTPUT_ONLY);
 
-  Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
+  macId = WiFi.macAddress();
 
-  //  Serial.println(zero_factor);
+  print_wakeup_reason();
 
-  //  scale.set_scale(calibration_factor); //Adjust to this calibration factor
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_11, 0); //1 = High, 0 = Low
+  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+  Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) +
+                 " Seconds");
 
-  //scale.set_scale(calibration_factor); //Adjust to this calibration factor
+  /*
+    Next we decide what all peripherals to shut down/keep on
+    By default, ESP32 will automatically power down the peripherals
+    not needed by the wakeup source, but if you want to be a poweruser
+    this is for you. Read in detail at the API docs
+    http://esp-idf.readthedocs.io/en/latest/api-reference/system/deep_sleep.html
+    Left the line commented as an example of how to configure peripherals.
+    The line below turns off all RTC peripherals in deep sleep.
+  */
+  //esp_deep_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
+  //Serial.println("Configured all RTC Peripherals to be powered down in sleep");
 
+  /*
+    Now that we have setup a wake cause and if needed setup the
+    peripherals state in deep sleep, we can now start going to
+    deep sleep.
+    In the case that no wake up sources were provided but deep
+    sleep was started, it will sleep forever unless hardware
+    reset occurs.
+  */
 
-  // Create the BLE Device
+  /*  WiFi.begin(ssid, password);
 
-  BLEDevice::init("FRANCISCO BLE TEST");
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+    }*/
 
-  // Create the BLE Server
+  if ((wifiMulti.run() == WL_CONNECTED)) {
 
-  pServer = BLEDevice::createServer();
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
 
-  pServer->setCallbacks(new MyServerCallbacks());
 
-
-
-  // Create the BLE Service
-
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-
-
-
-  // Create a BLE Characteristic
-
-  pTxCharacteristic = pService->createCharacteristic(
-
-                        CHARACTERISTIC_UUID_TX,
-
-                        BLECharacteristic::PROPERTY_NOTIFY
-
-                      );
-
-  pTxCharacteristic->addDescriptor(new BLE2902());
-
-  BLECharacteristic * pRxCharacteristic = pService->createCharacteristic(
-
-      CHARACTERISTIC_UUID_RX,
-
-      BLECharacteristic::PROPERTY_WRITE
-
-                                          );
-
-  pRxCharacteristic->setCallbacks(new MyCallbacks());
-
-  // Start the service
-
-  pService->start();
-
-  // Start advertising
-
-  pServer->getAdvertising()->start();
-
-  Serial.println("Waiting a client connection to notify...");
-
-  rfid_1.PCD_Init();
-
-  rfid_2.PCD_Init();
-
-  SERVO.attach(SERVO_PIN, 600, 2300);
-
-  SERVO.write(0);
-
-  SERVO_2.attach(SERVO_2_PIN, 600, 2300);
-
-  SERVO_2.write(0);
-
-  pinMode(OPTICAL_PIN, INPUT);
-
-    readRFIDs();
-    Serial.println();
-    Serial.println();
-    Serial.println("Color Containers and their respective Angles");
-    Serial.println();
-
-    Serial.print("Color Name");
-    Serial.print("   ");
-    Serial.println("Container Angle");
-
-    for(int i=0; i<11; i++)
+    if (!checkMacId(macId))     //   && gpio_interr (Seems like it's Not Need in power up)
     {
-    Serial.println(color_names[i]);
-    Serial.println(degreesOfColors[i]);
-    Serial.println();
+      // gpio_interr = false;
+      Serial.println("******************************************************************************");
+      Serial.println("First time Power up Update");
+      createSensor(macId);
+      Serial.println("******************************************************************************");
+    }
+
+    else if (timer_interr)
+    {
+      Serial.println("******************************************************************************");
+      timer_interr = false;
+      Serial.println("Battery Update (Timer)");
+      Update_Timer(macId);
+      Serial.println("******************************************************************************");
+    }
+
+    else if (gpio_interr)
+    {
+      Serial.println("******************************************************************************");
+      gpio_interr = false;
+      Serial.println("Shock Update");
+      Update_Shock(macId);
+      Serial.println("******************************************************************************");
+      int t1 = 0;
+    }
+    else
+    {
+      //Serial.println("else");
     }
 
     delay(5000);
-
-  SERVO.write(90);
-
- /*   doc_out["STATUS"] = "r";
-    serializeJson(doc_out, SEND_STATUS_BLE);
-
-    Serial.println("JSON");
-    Serial.println(SEND_STATUS_BLE);
-
-    pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
-
-    pTxCharacteristic->notify();
-
-
-   SEND_STATUS = "{\"STATUS\":\"r\"}";
-
-   pTxCharacteristic->setValue(SEND_STATUS.c_str());
-
-   pTxCharacteristic->notify();*/
-
-//   delay(10000000);
-
-  Serial.println("End Setup");
-
-
-}
-
-unsigned long previousMillis = 0;
-const long interval = 1000;
-
-int str = 0;
-void loop() {  //*************************************************************************************************************************************
-
-
-
-  // Serial.println("Start loop");
-  
-  if(COUNTER >= COUNTER_COMPLETE)
-  {
-    COUNTER = 0;
-    }
-  COUNTER++;
-
-  //str = String(weight);
-  str++;
-
-  if (str > 300)
-    str = 0;
-
-  
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-      previousMillis = currentMillis;
-  if (deviceConnected) {
- //   pTxCharacteristic->setValue((uint8_t*)&str, 4);
- //   pTxCharacteristic->notify();
-    if(READY_FLAG == 0)
-    {
-      Serial.print("Time = ");
-      Serial.println(millis());
-    SEND_STATUS_BLE = "";
-    doc_out["STATUS"] = "r";
-    serializeJson(doc_out, SEND_STATUS_BLE);
-    Serial.println("JSON");
-    Serial.println(SEND_STATUS_BLE);
-    pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
-    pTxCharacteristic->notify();
-//    READY_FLAG = 1;
-    }
-  }
-  }
-
-
-
-  // disconnecting
-
-  if (!deviceConnected && oldDeviceConnected) {
-
-    delay(10); // give the bluetooth stack the chance to get things ready
-
-    pServer->startAdvertising(); // restart advertising
-
-    Serial.println("start advertising");
-
-    oldDeviceConnected = deviceConnected;
-
-  }
-
-  // connecting
-
-  if (deviceConnected && !oldDeviceConnected) {
-
-    // do stuff here on connecting
-
-    oldDeviceConnected = deviceConnected;
-
-  }
-
-
-  //weight = ( scale.get_units() > 0 ? scale.get_units() : 0 ) ;
- // Serial.print(weight, 1);
-
-//  Serial.print(" gram(s)"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
-
-  /*Serial.print(" calibration_factor: ");
-
-    Serial.print(calibration_factor);*/
-
- // Serial.println();
-
-
-  for (int i = 0; i < 11; i++)
-
-  {
-    if (COLOR == color_names[i])
-
-    {
-      if (flag_1 == 0)
-      {
-
-        SERVO.write(degreesOfColors[i]);
-
-        Serial.println("Servo adjustment");
-
-        delay(3000);
-
-        flag_1 = 1;
-
-      }
-
-      if (QUANTITY > 0 && QTY_AVAILABLE[i] >= QUANTITY && rfid_2.PICC_IsNewCardPresent())
-
-      {
-        weight++;
-        Serial.print("Dispensed quantity = ");
-        Serial.print(weight);
-        delay(200);
-        READY_FLAG = 1;
-
-        Serial.println();
-        //      Serial.println("Dispensing");
-        
-        currentMillis = millis();
-        if (currentMillis - previousMillis >= interval) {
-        previousMillis = currentMillis;
-        SEND_STATUS_BLE = "";
-        doc_out["STATUS"] = "d";
-        serializeJson(doc_out, SEND_STATUS_BLE);
-        Serial.println("JSON");
-        Serial.println(SEND_STATUS_BLE);
-        pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
-        pTxCharacteristic->notify();
-        }
-
-
-        if (weight < (0.8 * QUANTITY)) {
-
-          Serial.print("Dispense : ");
-
-          Serial.println("< 80%");
-
-          SERVO_2.write(30);
-
-        }
-
-        else if (weight >= (0.8 * QUANTITY)  && (weight < QUANTITY)) {
-
-          Serial.print("Dispense : ");
-
-          Serial.println(">= 80%");
-
-          SERVO_2.write(30);
-
-          delay(100);
-
-          SERVO_2.write(0);
-
-          delay(500);
-
-        }
-
-        else if (weight >= QUANTITY) {
-
-          SERVO_2.write(0);
-
-          COLOR = "";
-
-          flag_1 = 0;
-
-          READY_FLAG = 0;
-
-          Serial.println();
-
-          Serial.print("Dispense : ");
-
-          Serial.println("100%");
-
-          QTY_AVAILABLE[i] = QTY_AVAILABLE[i] - QUANTITY;
-          
-
-          while(QTY_AVAILABLE[i] < 20)
-          {
-            currentMillis = millis();
-            if (currentMillis - previousMillis >= interval) {
-            previousMillis = currentMillis;
-            SEND_STATUS_BLE = "";
-            doc_out["STATUS"] = "f";
-            serializeJson(doc_out, SEND_STATUS_BLE);
-            Serial.println("JSON");
-            Serial.println(SEND_STATUS_BLE);
-            pTxCharacteristic->setValue(SEND_STATUS_BLE.c_str());
-            pTxCharacteristic->notify();
-            }
-            
-          }
-
-          QUANTITY = 0;
-          weight = 0;
-
-          Serial.println("Dispense Completed!");
-
-          Serial.print("Quantity Available = ");
-
-          Serial.println(QTY_AVAILABLE[i]);
-
-          Serial.println();
-
-          delay(10000);
-
-        }
-
-        else  {}
-
-        //Serial.println("if condition");
-
-      }
-
-    }
+    Serial.println("Going to sleep now");
+    Serial.flush();
+    esp_deep_sleep_start();
+    Serial.println("This will never be printed");
 
   }
 
 }
 
-int getCartridgeColor() //*************************************
-
-{
-
-  Serial.println("In getCartridgeColor Function");
-
-  String threeBytes = "";
-
-  String colorName = "";
-
-  int color_r = 0;
-
-  if ( ! rfid_1.PICC_IsNewCardPresent()) {
-
-    Serial.println("IsNewcCardPresent");
-
-    return 0;
-
-  }
-
-
-  // Select one of the cards
-
-  if ( ! rfid_1.PICC_ReadCardSerial()) {
-
-    Serial.println("ReadCardSerial");
-
-    return 0;
-
-  }
-
-  rfid_1.PICC_DumpToSerial(&(rfid_1.uid));
-
-  Serial.println("UID");
-
-  temp_CID = "";
-
-
-  for (byte i = 0; i < rfid_1.uid.size; i++) {
-
-    if (rfid_1.uid.uidByte[i] < 0x10)
-
-      //Serial.print(F("0"));
-
-      temp_CID += "0";
-
-    else
-
-      //Serial.print(F(""));
-
-      temp_CID += "";
-
-    //Serial.print(rfid_1.uid.uidByte[(rfid_1.uid.size - 1) - i], HEX);
-
-    temp_CID += String(rfid_1.uid.uidByte[i], HEX);
-
-  }
-
-  threeBytes = temp_CID.substring(0, 3);
-
-  // Search Color
-
-  for (int i = 0; i < 11; i++)
-
-  {
-
-    if (threeBytes == CIDS[i])
-
-    {
-
-      color_r = colors[i];
-
-      colorName = color_names[i];
-
-    }
-
-  }
-
-  Serial.println(temp_CID);
-
-  Serial.println(threeBytes);
-
-  Serial.println(color_r);
-
-  Serial.println(colorName);
-
-  Serial.println("End getCartridge Fucntion");
-
-  return color_r;
-
-}
-
-void readRFIDs() //**************************************
-
-{
-
-  Serial.println("In readRFIDs Function");
-
-  for (INDEX = 0; INDEX < 360; INDEX++) {
-
-    pos = INDEX / 2;
-
-    SERVO.write(pos);
-
-    delay(20);
-
-    // Read in the ADC and convert it to a voltage:
-
-    proximityADC = analogRead(OPTICAL_PIN);
-
-    proximityV = (float)proximityADC * 5.0 / 1023.0;
-
-    //  delay(100);
-
-    Serial.print("INDEX = ");
-
-    Serial.println(INDEX);
-
-    Serial.print("Servo position = ");
-
-    Serial.println(pos);
-
-    Serial.print("OPTICAL_VALUE = ");
-
-    Serial.println(proximityV);
-
-    Serial.println("");
-
-    if (rfid_1.PICC_IsNewCardPresent() && proximityV < 20)
-
-    {
-      getCartridgeColor();
-      int a = getCartridgeColor();
-      Serial.print("a = ");
-      Serial.println(a);
-
-      Serial.println("RFID + OPTICAL DETECTED");
-
-      for (int i = 0; i < 11; i++)
-
-      {
-
-        if (a ==  colors[i])
-
-        {
-          degreesOfColors[i] = pos;
-        }
-      }
-    }
-  }
+void loop() {
+  //This is not going to be called
 }
