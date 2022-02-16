@@ -5,11 +5,12 @@ BLEServer *pServer = NULL;
 BLECharacteristic* pTxCharacteristic = NULL;
 BLEService *pService = NULL;
 uint8_t deviceConnected = false;
-uint8_t oldDeviceConnected = false;
-uint8_t messageReceived = false;
+bool previousDeviceConnected = false;
+bool messageReceived = false;
 StaticJsonDocument<200> doc_in;
 StaticJsonDocument<200> doc_out;
 const long interval = 1000;
+bool old;
 
 extern "C"
 {
@@ -81,6 +82,9 @@ extern "C"
 		
 		startServiceAndAdvertising();
 		
+		deviceConnected = false;
+		old = false;
+		
 		return SUCCESS;
 	}
 	
@@ -94,27 +98,48 @@ extern "C"
 	
 	uint8_t checkMessageAndUpdateStatus(int grams_available)
 	{
-		if(grams_available > 20)
+		
+		uint8_t status;
+		
+		if(deviceConnected)
 		{
-			if(messageReceived)
+			if(grams_available > 20)
 			{
-				delay(100);
+				if(messageReceived)
+				{
+					delay(100);
+					
+					messageReceived = false;
+					
+					status = SUCCESS;
+				}else{
+					updateStatus(ready);
+					
+					status = FAILED;
+				}
 				
-				messageReceived = false;
+			}else
+			{
+				updateStatus(refill);
 				
-				return SUCCESS;
-			}else{
-				
-				updateStatus(ready);
-				return FAILED;
+				status = FAILED;
 			}
-			
-		}else
-		{
-			updateStatus(refill);
-			
-			return FAILED;
 		}
+		
+		if(!deviceConnected && old)
+		{
+			delay(500); // give the bluetooth stack the chance to get things ready
+			pServer->startAdvertising(); // restart advertising
+			Serial.println("start advertising");
+			old = deviceConnected;
+		}
+		if(deviceConnected && !old)
+		{
+			Serial.println("Old device not connected");
+			old = deviceConnected;
+		}
+		
+		return status;
 	}
 	
 	/*********************************************************************************
@@ -151,6 +176,8 @@ extern "C"
 		Serial.println(SEND_STATUS_BLE.c_str());
 		pTxCharacteristic->setValue(SEND_STATUS_BLE);
 		pTxCharacteristic->notify();
+		
+		return SUCCESS;
 		
 	}
 	

@@ -244,6 +244,8 @@ extern "C"
 		PCD_Init();
 		readRFIDs(&servo, cartridge);
 		deleteRFID();
+		
+		return SUCCESS;
 	}
 	
 	/*********************************************************************************
