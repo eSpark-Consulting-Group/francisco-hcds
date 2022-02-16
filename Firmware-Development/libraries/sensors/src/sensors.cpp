@@ -1,6 +1,5 @@
 #include "sensors.h"
 
-
 uint8_t GAIN = 0;
 long OFFSET = 0;
 uint32_t DOUT_GLOBAL = NULL;
@@ -76,6 +75,61 @@ extern "C"
 	{
 		double sum = read_average(times);
 		set_offset(sum);
+		
+		return SUCCESS;
+	}
+	
+		/*********************************************************************************
+	 *	@purpose: dispense specified color of quantity
+	 *	
+	 *	@color: color of colors enum type
+	 *	@quantity: quantity in grams
+	 *
+	 *	@return: status, SUCCESS or FAILED
+	 *********************************************************************************/
+	
+	uint8_t dispenseColor(int quantity, cartridges_t* cartridge)
+	{
+		Servo servo;
+		initServo(&servo, dispenserServoPin_GLOBAL);
+		
+		int color_choosen = cartridge->color_selected;
+		
+		float grams;
+		
+		Serial.println("Dispensing");
+		Serial.println(color_choosen);
+		
+		Serial.println("Quantity mentioned");
+		Serial.println(quantity);
+		
+		Serial.println("Quantity available");
+		Serial.println(cartridge->quantityAvailable[color_choosen]);
+		
+		if((quantity > 0) && (cartridge->quantityAvailable[color_choosen] >= quantity))
+		{
+			Serial.println("Inside quantity Available if block");
+			if(grams < (0.8 * quantity))
+			{
+				servo.write(30);
+				delay(1000);
+			}else if((grams >= (0.8 * quantity)) && (grams < quantity))
+			{
+				servo.write(30);
+				
+				delay(500);
+				
+				servo.write(0);
+				
+				delay(500);
+				
+			}else if(grams >= quantity)
+			{
+				servo.write(0);
+				cartridge->quantityAvailable[color_choosen] -= quantity;
+			}
+		}
+
 		
 		return SUCCESS;
 	}
@@ -310,68 +364,6 @@ extern "C"
 	  return SUCCESS;
 	}
 	
-	/*********************************************************************************
-	 *	@purpose: dispense specified color of quantity
-	 *	
-	 *	@color: color of colors enum type
-	 *	@quantity: quantity in grams
-	 *
-	 *	@return: status, SUCCESS or FAILED
-	 *********************************************************************************/
-	
-	uint8_t dispenseColor(int quantity, cartridges_t* cartridge)
-	{
-		Servo servo;
-		initServo(&servo, dispenserServoPin_GLOBAL);
-		
-		int color_choosen = cartridge->color_selected;
-		
-		while(true)
-		{
-			float grams;
-			//getGrams(&grams);
-			grams = 9.0;
-			
-			updateStatus(dispensing);
-			
-			Serial.println("Dispensing");
-			Serial.println(color_choosen);
-			
-			Serial.println("Quantity mentioned");
-			Serial.println(quantity);
-			
-			Serial.println("Quantity available");
-			Serial.println(cartridge->quantityAvailable[color_choosen]);
-			
-			if((quantity > 0) && (cartridge->quantityAvailable[color_choosen] >= quantity))
-			{
-				Serial.println("Inside quantityAvailable if block");
-				if(grams < (0.8 * quantity))
-				{
-					servo.write(30);
-					delay(1000);
-				}else if((grams >= (0.8 * quantity)) && (grams < quantity))
-				{
-					servo.write(30);
-					
-					delay(500);
-					
-					servo.write(0);
-					
-					delay(500);
-					
-				}else if(grams >= quantity)
-				{
-					servo.write(0);
-					cartridge->quantityAvailable[color_choosen] -= quantity;
-					break;
-				}
-			}
-
-		}
-		
-		return SUCCESS;
-	}
 	
 	uint8_t setTrayRFIDPins(uint32_t CS_PIN, uint32_t RST_PIN)
 	{
@@ -429,6 +421,8 @@ extern "C"
 		mySPI = new SPIClass(VSPI);
 		
 		mySPI->begin();
+		
+		return SUCCESS;
 	}
 	
 	static uint8_t PCD_Init()
@@ -471,7 +465,9 @@ extern "C"
 		
 		PCD_WriteRegister(TxASKReg, 0x40);		
 		PCD_WriteRegister(ModeReg, 0x3D);		
-		PCD_AntennaOn();						
+		PCD_AntennaOn();
+
+		return SUCCESS;
 		
 	}
 	
@@ -481,6 +477,8 @@ extern "C"
 		do {
 			delay(50);
 		} while ((PCD_ReadRegister(CommandReg) & (1 << 4)) && (++count) < 3);
+		
+		return SUCCESS;
 	}
 	
 	static uint8_t PCD_WriteRegister(PCD_Register reg, uint8_t value)
@@ -955,6 +953,8 @@ extern "C"
 	{
 		servo->attach(servo_pin, 600, 2300);
 		//servo->write(0);
+		
+		return SUCCESS;
 	}
 	
 	static uint8_t PICC_ReadCardSerial() {
@@ -1508,6 +1508,8 @@ extern "C"
 	static uint8_t deleteRFID()
 	{
 		delete mySPI;
+		
+		return SUCCESS;
 	}
 	
 }

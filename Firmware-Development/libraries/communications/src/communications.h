@@ -1,9 +1,7 @@
+#pragma once
+
 #include "Arduino.h"
 #include "ArduinoJson.h"
-
-#ifndef COMMS
-	#define COMMS
-#endif
 
 #include "BLEDevice.h"
 #include "BLEServer.h"
@@ -20,44 +18,18 @@
 #define TRUE 1
 #define FALSE 0
 
-// Structs and variables
-typedef enum
-{
-	ready = 1,
-	dispensing,
-	refill,
-}status;
-
-typedef enum : uint16_t
-{
-	RED = 0x806,
-	YELLOW = 0x733,
-	GREEN = 0x694,
-	PINK = 0x123,
-	BLACK = 0x125,
-	AQUA = 0x124,
-	AERO_BLUE = 0x793,
-	BLUE = 0x19b,
-	MAGNETA = 0x150,
-	GOLD = 0x155,
-	LIGHTENER = 0x190,
-}colors;
-
-
 extern "C"
 {
 	// Public functions
 	uint8_t initBLE();
 	uint8_t checkMessageAndUpdateStatus(int grams_available);
 	uint8_t getColorIDAndQuantity(int* color, int* quantity);
-	uint8_t updateStatus(status current_status);
 	
 	// Private functions
 	static uint8_t createBLEDevice();
 	static uint8_t createBLEService();
 	static uint8_t createBLECharacterstic();
 	static uint8_t startServiceAndAdvertising();
-	uint8_t updateStatus(status current_status);
 	
 	
 }

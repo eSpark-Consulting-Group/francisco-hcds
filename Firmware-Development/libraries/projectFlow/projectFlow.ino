@@ -20,12 +20,29 @@ int color_id;
 int quantityAvailable = 100;
 int quantity = 0;
 
+StaticJsonDocument<200> doc_out;
+BLECharacteristic* pTxCharacteristic = NULL;
+
+extern BLEService *pService;
+
+typedef enum
+{
+  ready = 1,
+  dispensing,
+  refill,
+} status;
+
+// fucntion prototypes
+uint8_t updateStatus(status current_status);
+
 void setup() {
   // put your setup code here, to run once:
 
   Serial.begin(115200);
 
   initBLE();
+
+  createBLETXCharacterstic();
 
   // Configuring sensor pins
   setTrayRFIDPins(SS_1_PIN, RST_1_PIN);
@@ -36,6 +53,7 @@ void setup() {
   setHX711Pins(DOUT_HX711, CLK_HX711);
 
   processCartridges(&cartridge);
+
 }
 
 void loop() {
@@ -46,6 +64,8 @@ void loop() {
   getColorIDAndQuantity(&color_id, &quantity);
 
   quantityAvailable = cartridge.quantityAvailable[color_id];
+
+  updateStatus(ready);
 
   if (checkMessageAndUpdateStatus(quantityAvailable))
   {
@@ -68,7 +88,20 @@ void loop() {
         Serial.println("Tray is present");
 
         //Dispense specified color
-        dispenseColor(quantity, &cartridge);
+        while (true)
+        {
+          float grams;
+          getGrams(&grams);
+
+          dispenseColor(quantity, &cartridge);
+
+          updateStatus(dispensing);
+
+          if (grams >= quantity)
+          {
+            break;
+          }
+        }
       } else
       {
         Serial.println("Tray is not present");
@@ -77,6 +110,7 @@ void loop() {
     } else
     {
       Serial.println("Quantity < 20");
+      updateStatus(refill);
     }
   } else
   {
@@ -84,4 +118,25 @@ void loop() {
   }
 
   delay(1000);
+}
+
+uint8_t updateStatus(status current_status)
+{
+  std::string SEND_STATUS_BLE;
+
+  doc_out["STATUS"] = (int)current_status;
+  serializeJson(doc_out, SEND_STATUS_BLE);
+  Serial.println("JSON");
+  Serial.println(SEND_STATUS_BLE.c_str());
+  pTxCharacteristic->setValue(SEND_STATUS_BLE);
+  pTxCharacteristic->notify();
+
+  return SUCCESS;
+
+}
+
+uint8_t createBLETXCharacterstic()
+{
+  pTxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_TX, BLECharacteristic::PROPERTY_NOTIFY);
+  pTxCharacteristic->addDescriptor(new BLE2902());
 }
