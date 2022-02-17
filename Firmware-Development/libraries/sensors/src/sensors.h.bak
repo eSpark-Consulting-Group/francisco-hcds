@@ -14,6 +14,22 @@
 #define MFRC522_SPICLOCK (4000000u)	// MFRC522 accept upto 10MHz, set to 4MHz.
 
 // structs and variables
+
+typedef enum : uint16_t
+{
+	RED = 0x806,
+	YELLOW = 0x733,
+	GREEN = 0x694,
+	PINK = 0x123,
+	BLACK = 0x125,
+	AQUA = 0x124,
+	AERO_BLUE = 0x793,
+	BLUE = 0x19b,
+	MAGNETA = 0x150,
+	GOLD = 0x155,
+	LIGHTENER = 0x190,
+}colors;
+
 typedef struct
 {	
 	int degreesOfColors[11] = {0};
@@ -232,6 +248,7 @@ extern "C"
 	uint8_t processCartridges(cartridges_t* cartridge);
 	uint8_t isTrayPlaced();
 	uint8_t moveToCartridge(colors color_id, cartridges_t* cartridge);
+	uint8_t dispenseColor(int quantity, cartridges_t* cartridge);
 	
 	// Private functions
 	
