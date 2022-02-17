@@ -22,10 +22,11 @@ int quantity = 0;
 uint32_t timer = 0;
 
 StaticJsonDocument<200> doc_out;
-extern BLECharacteristic* pTxCharacteristic;
 
+extern BLECharacteristic* pTxCharacteristic;
 extern BLEService *pService;
 extern uint8_t deviceConnected;
+extern int quantity_global;
 
 typedef enum
 {
@@ -44,8 +45,6 @@ void setup() {
 
   initBLE();
 
-  //createBLETXCharacterstic();
-
   // Configuring sensor pins
   setTrayRFIDPins(SS_1_PIN, RST_1_PIN);
   setCartridgeRFIDPins(SS_2_PIN, RST_2_PIN);
@@ -62,8 +61,6 @@ void loop() {
   // put your main code here, to run repeatedly:
 
   // Color will be selected with App
-
-  getColorIDAndQuantity(&color_id, &quantity);
 
   quantityAvailable = cartridge.quantityAvailable[color_id];
 
@@ -82,7 +79,7 @@ void loop() {
       Serial.println("Color");
       Serial.println(color_id);
 
-      moveToCartridge((colors)color_id, &cartridge);
+      moveToCartridge(&cartridge);
 
       if (isTrayPlaced())
         //if (true)
@@ -92,14 +89,14 @@ void loop() {
         //Dispense specified color
         while (true)
         {
-          float grams;
-          getGrams(&grams);
+          float grams = 9;
+          //getGrams(&grams);
 
-          dispenseColor(quantity, &cartridge);
+          dispenseColor(&cartridge);
 
           updateStatus(dispensing);
 
-          if (grams >= quantity)
+          if (grams >= quantity_global)
           {
             break;
           }
@@ -143,10 +140,3 @@ uint8_t updateStatus(status current_status)
   return SUCCESS;
 
 }
-//
-//uint8_t createBLETXCharacterstic()
-//{
-//  pTxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_TX, BLECharacteristic::PROPERTY_NOTIFY);
-//  pTxCharacteristic->addDescriptor(new BLE2902());
-//  return SUCCESS;
-//}

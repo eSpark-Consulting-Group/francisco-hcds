@@ -247,8 +247,8 @@ extern "C"
 	// Cartridge functions
 	uint8_t processCartridges(cartridges_t* cartridge);
 	uint8_t isTrayPlaced();
-	uint8_t moveToCartridge(colors color_id, cartridges_t* cartridge);
-	uint8_t dispenseColor(int quantity, cartridges_t* cartridge);
+	uint8_t moveToCartridge(cartridges_t* cartridge);
+	uint8_t dispenseColor(cartridges_t* cartridge);
 	
 	// Private functions
 	

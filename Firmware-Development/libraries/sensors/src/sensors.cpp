@@ -13,6 +13,8 @@ uint32_t RST_Cartridge_GLOBAL  = NULL;
 uint32_t CS_Cartridge_GLOBAL  = NULL;
 uint32_t RST_Tray_GLOBAL = NULL;
 uint32_t CS_Tray_GLOBAL  = NULL;
+extern int color_id_global;
+extern int quantity_global;
 
 float SCALE = 1;
 SPIClass* mySPI;
@@ -88,32 +90,31 @@ extern "C"
 	 *	@return: status, SUCCESS or FAILED
 	 *********************************************************************************/
 	
-	uint8_t dispenseColor(int quantity, cartridges_t* cartridge)
+	uint8_t dispenseColor(cartridges_t* cartridge)
 	{
 		Servo servo;
 		initServo(&servo, dispenserServoPin_GLOBAL);
-		
-		int color_choosen = cartridge->color_selected;
-		
-		float grams;
+				
+		float grams = 9;
+        //getGrams(&grams);
 		
 		Serial.println("Dispensing");
-		Serial.println(color_choosen);
+		Serial.println(color_id_global);
 		
 		Serial.println("Quantity mentioned");
-		Serial.println(quantity);
+		Serial.println(quantity_global);
 		
 		Serial.println("Quantity available");
-		Serial.println(cartridge->quantityAvailable[color_choosen]);
+		Serial.println(cartridge->quantityAvailable[color_id_global]);
 		
-		if((quantity > 0) && (cartridge->quantityAvailable[color_choosen] >= quantity))
+		if((quantity_global > 0) && (cartridge->quantityAvailable[color_id_global] >= quantity_global))
 		{
 			Serial.println("Inside quantity Available if block");
-			if(grams < (0.8 * quantity))
+			if(grams < (0.8 * quantity_global))
 			{
 				servo.write(30);
 				delay(1000);
-			}else if((grams >= (0.8 * quantity)) && (grams < quantity))
+			}else if((grams >= (0.8 * quantity_global)) && (grams < quantity_global))
 			{
 				servo.write(30);
 				
@@ -123,10 +124,10 @@ extern "C"
 				
 				delay(500);
 				
-			}else if(grams >= quantity)
+			}else if(grams >= quantity_global)
 			{
 				servo.write(0);
-				cartridge->quantityAvailable[color_choosen] -= quantity;
+				cartridge->quantityAvailable[color_id_global] -= quantity_global;
 			}
 		}
 
@@ -345,20 +346,18 @@ extern "C"
 	 *	@return: status, SUCCESS or FAILED
 	 *********************************************************************************/
 	
-	uint8_t moveToCartridge(colors color_id, cartridges_t* cartridge)
+	uint8_t moveToCartridge(cartridges_t* cartridge)
 	{
 		
 	  Servo servo;
 		
-	  cartridge->color_selected = color_id;
-		
 	  initServo(&servo, cartridgeServoPin_GLOBAL);
 		
 	  Serial.println("Inside moveToCartridge function");
-	  Serial.println(color_id);
+	  Serial.println(color_id_global);
 	
-	  Serial.println(cartridge->degreesOfColors[color_id]);
-	  servo.write(cartridge->degreesOfColors[color_id]);
+	  Serial.println(cartridge->degreesOfColors[color_id_global]);
+	  servo.write(cartridge->degreesOfColors[color_id_global]);
 	  delay(1000);
 		
 	  return SUCCESS;

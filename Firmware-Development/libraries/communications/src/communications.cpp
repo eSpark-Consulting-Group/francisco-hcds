@@ -10,6 +10,8 @@ bool messageReceived = false;
 StaticJsonDocument<200> doc_in;
 const long interval = 1000;
 bool old;
+int color_id_global;
+int quantity_global;
 
 extern "C"
 {
@@ -60,6 +62,9 @@ extern "C"
 
 
 			deserializeJson(doc_in, rcvdJson);
+
+			color_id_global = doc_in["COLOR"];
+			quantity_global = doc_in["QUANTITY"];
 
 		  }
 
