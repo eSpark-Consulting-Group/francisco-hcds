@@ -2,19 +2,28 @@
 
 uint8_t GAIN = 0;
 long OFFSET = 0;
-uint32_t DOUT_GLOBAL = NULL;
-uint32_t CLK_GLOBAL = NULL;
-uint32_t CS_GLOBAL = NULL;
-uint32_t RST_GLOBAL = NULL;
-uint32_t opticalPin_GLOBAL = NULL;
-uint32_t dispenserServoPin_GLOBAL  = NULL;
-uint32_t cartridgeServoPin_GLOBAL  = NULL;
-uint32_t RST_Cartridge_GLOBAL  = NULL;
-uint32_t CS_Cartridge_GLOBAL  = NULL;
-uint32_t RST_Tray_GLOBAL = NULL;
-uint32_t CS_Tray_GLOBAL  = NULL;
+uint32_t DOUT_GLOBAL = 0;
+uint32_t CLK_GLOBAL = 0;
+uint32_t CS_GLOBAL = 0;
+uint32_t RST_GLOBAL = 0;
+uint32_t opticalPin_GLOBAL = 0;
+uint32_t dispenserServoPin_GLOBAL  = 0;
+uint32_t cartridgeServoPin_GLOBAL  = 0;
+uint32_t RST_Cartridge_GLOBAL  = 0;
+uint32_t CS_Cartridge_GLOBAL  = 0;
+uint32_t RST_Tray_GLOBAL = 0;
+uint32_t CS_Tray_GLOBAL  = 0;
 extern int color_id_global;
 extern int quantity_global;
+
+// Servo variables
+int ticks = DEFAULT_PULSE_WIDTH_TICKS; // current pulse width on this channel
+int timer_width = DEFAULT_TIMER_WIDTH; // ESP32 allows variable width PWM timers
+int timer_width_ticks = DEFAULT_TIMER_WIDTH_TICKS; // no. of ticks at rollover; varies with widt
+int REFRESH_CPS = 50;
+int min_global = 0;
+int max_global = 0;
+ESP32PWM pwm;
 
 float SCALE = 1;
 SPIClass* mySPI;
@@ -92,8 +101,7 @@ extern "C"
 	
 	uint8_t dispenseColor(cartridges_t* cartridge)
 	{
-		Servo servo;
-		initServo(&servo, dispenserServoPin_GLOBAL);
+		initServo(dispenserServoPin_GLOBAL);
 				
 		float grams = 9;
         //getGrams(&grams);
@@ -112,21 +120,21 @@ extern "C"
 			Serial.println("Inside quantity Available if block");
 			if(grams < (0.8 * quantity_global))
 			{
-				servo.write(30);
+				servoWrite(30);
 				delay(1000);
 			}else if((grams >= (0.8 * quantity_global)) && (grams < quantity_global))
 			{
-				servo.write(30);
+				servoWrite(30);
 				
 				delay(500);
 				
-				servo.write(0);
+				servoWrite(0);
 				
 				delay(500);
 				
 			}else if(grams >= quantity_global)
 			{
-				servo.write(0);
+				servoWrite(0);
 				cartridge->quantityAvailable[color_id_global] -= quantity_global;
 			}
 		}
@@ -285,7 +293,7 @@ extern "C"
 		
 		// Initialize HX711 weight sensor
 		initHX711();
-		servo.setPeriodHertz(50); // standard 50 hz servo
+		setPeriodHertz(50); // standard 50 hz servo
 		
 		for(int i = 0; i < 11; i++)
 		{
@@ -294,10 +302,10 @@ extern "C"
 		
 		
 		// Cartridge RFID
-		initServo(&servo, cartridgeServoPin_GLOBAL);
+		initServo(cartridgeServoPin_GLOBAL);
 		initRFID(CS_Cartridge_GLOBAL, RST_Cartridge_GLOBAL);
 		PCD_Init();
-		readRFIDs(&servo, cartridge);
+		readRFIDs(cartridge);
 		deleteRFID();
 		
 		return SUCCESS;
@@ -349,15 +357,14 @@ extern "C"
 	uint8_t moveToCartridge(cartridges_t* cartridge)
 	{
 		
-	  Servo servo;
 		
-	  initServo(&servo, cartridgeServoPin_GLOBAL);
+	  initServo(cartridgeServoPin_GLOBAL);
 		
 	  Serial.println("Inside moveToCartridge function");
 	  Serial.println(color_id_global);
 	
 	  Serial.println(cartridge->degreesOfColors[color_id_global]);
-	  servo.write(cartridge->degreesOfColors[color_id_global]);
+	  servoWrite(cartridge->degreesOfColors[color_id_global]);
 	  delay(1000);
 		
 	  return SUCCESS;
@@ -948,10 +955,9 @@ extern "C"
 		}
 	}
 	
-	static uint8_t initServo(Servo* servo, uint32_t servo_pin)
+	static uint8_t initServo(uint32_t servo_pin)
 	{
-		servo->attach(servo_pin, 600, 2300);
-		//servo->write(0);
+		attach(servo_pin, 600, 2300);
 		
 		return SUCCESS;
 	}
@@ -1172,7 +1178,7 @@ extern "C"
 		return STATUS_OK;
 	} // End PICC_Select()
 	
-	static uint8_t readRFIDs(Servo* servo, cartridges_t* cartridge)
+	static uint8_t readRFIDs(cartridges_t* cartridge)
 	{
 		int pos;
 		
@@ -1182,7 +1188,7 @@ extern "C"
 		{
 
 			pos = INDEX / 2;
-			servo->write(pos);
+			servoWrite(pos);
 
 			delay(20);
 			
@@ -1510,5 +1516,98 @@ extern "C"
 		
 		return SUCCESS;
 	}
-	
+
+	static uint8_t servoWrite(int value)
+	{
+	  // treat values less than MIN_PULSE_WIDTH (500) as angles in degrees (valid values in microseconds are handled as microseconds)
+	  if (value < MIN_PULSE_WIDTH)
+	  {
+	    if (value < 0)
+	      value = 0;
+	    else if (value > 180)
+	      value = 180;
+
+	    value = map(value, 0, 180, min_global, max_global);
+	  }
+	  writeMicroseconds(value);
+
+	  return SUCCESS;
+	}
+
+	static uint8_t writeMicroseconds(int value)
+	{
+	  // calculate and store the values for the given channel
+	  if (value < min_global)          // ensure pulse width is valid
+	    value = min_global;
+	  else if (value > max_global)
+	    value = max_global;
+
+	  value = usToTicks(value);  // convert to ticks
+	  ticks = value;
+	  // do the actual write
+	  pwm.write( ticks);
+
+	  return SUCCESS;
+	}
+
+	static int usToTicks(int usec)
+	{
+	  return (int)((double)usec / ((double)REFRESH_USEC / (double)timer_width_ticks) * (((double)REFRESH_CPS) / 50.0));
+	}
+
+	static uint8_t setPeriodHertz(uint8_t hertz)
+	{
+	  REFRESH_CPS = hertz;
+	  setTimerWidth(timer_width);
+
+	  return SUCCESS;
+	}
+
+	static uint8_t attach(int pin, int min, int max)
+	{
+	  ticks = DEFAULT_PULSE_WIDTH_TICKS;
+	  timer_width = DEFAULT_TIMER_WIDTH;
+	  timer_width_ticks = pow(2, timer_width);
+
+	  if (min < MIN_PULSE_WIDTH)
+	    min = MIN_PULSE_WIDTH;
+	  if (max > MAX_PULSE_WIDTH)
+	    max = MAX_PULSE_WIDTH;
+
+	  min_global = min;
+	  max_global = max;
+
+	  pwm.attachPin(pin, REFRESH_CPS, timer_width);
+
+	  return SUCCESS;
+	}
+
+	static uint8_t setTimerWidth(int value)
+	{
+	  // only allow values between 16 and 20
+	  if (value < 16)
+	    value = 16;
+	  else if (value > 20)
+	    value = 20;
+
+	  // Fix the current ticks value after timer width change
+	  // The user can reset the tick value with a write() or writeUs()
+	  int widthDifference = timer_width - value;
+	  // if positive multiply by diff; if neg, divide
+	  if (widthDifference > 0)
+	  {
+	    ticks = widthDifference * ticks;
+	  }
+	  else if (widthDifference < 0)
+	  {
+	    ticks = ticks / -widthDifference;
+	  }
+
+	  timer_width = value;
+	  timer_width_ticks = pow(2, timer_width);
+
+	  return SUCCESS;
+
+	}
+
 }

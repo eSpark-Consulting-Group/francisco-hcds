@@ -3,6 +3,7 @@
 #include "Arduino.h"
 #include "Wire.h"
 #include "SPI.h"
+#include "ESP32PWM.h"
 #include "ESP32Servo.h"
 
 // Constant macros
@@ -10,7 +11,12 @@
 #define SUCCESS 1
 #define TRUE 1
 #define FALSE 0
-
+#define MIN_PULSE_WIDTH       500     // the shortest pulse sent to a servo  
+#define MAX_PULSE_WIDTH      2500     // the longest pulse sent to a servo 
+#define DEFAULT_TIMER_WIDTH 16
+#define DEFAULT_PULSE_WIDTH_TICKS 4825
+#define DEFAULT_TIMER_WIDTH_TICKS 65536
+#define REFRESH_USEC         20000
 #define MFRC522_SPICLOCK (4000000u)	// MFRC522 accept upto 10MHz, set to 4MHz.
 
 // structs and variables
@@ -277,8 +283,8 @@ extern "C"
 	static StatusCode PCD_TransceiveData(	uint8_t *sendData,	uint8_t sendLen, uint8_t *backData, uint8_t *backLen, uint8_t *validBits = nullptr, uint8_t rxAlign = 0, uint8_t checkCRC = false);
 	static StatusCode PCD_CommunicateWithPICC(uint8_t command, uint8_t waitIRq, uint8_t *sendData,	uint8_t sendLen, uint8_t *backData = nullptr,	uint8_t *backLen = nullptr, uint8_t *validBits = nullptr, uint8_t rxAlign = 0, uint8_t checkCRC = false);
 	static StatusCode PCD_CalculateCRC(uint8_t *data, uint8_t length, uint8_t *result);
-	static uint8_t initServo(Servo* servo, uint32_t servo_pin);
-	static uint8_t readRFIDs(Servo* servo, cartridges_t* cartridge);
+	static uint8_t initServo(uint32_t servo_pin);
+	static uint8_t readRFIDs(cartridges_t* cartridge);
 	static uint8_t readAndSetColor(cartridges_t* cartridge, int pos);
 	static void PCD_SetRegisterBitMask(PCD_Register reg, uint8_t mask);
 	static void PICC_DumpToSerial(Uid *uid);
@@ -293,5 +299,12 @@ extern "C"
 	static void PCD_StopCrypto1();
 	static StatusCode PICC_Select(Uid *uid, uint8_t validBits = 0);
 	static uint8_t deleteRFID();
-	
+
+	// Servo functions
+	static uint8_t servoWrite(int value);
+	static uint8_t writeMicroseconds(int value);
+	static int usToTicks(int usec);
+	static uint8_t setPeriodHertz(uint8_t hertz);
+	static uint8_t attach(int pin, int min, int max);
+	static uint8_t setTimerWidth(int value);
 }
