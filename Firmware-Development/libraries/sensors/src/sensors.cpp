@@ -289,7 +289,6 @@ extern "C"
 	uint8_t processCartridges(cartridges_t* cartridge)
 	{
 		
-		Servo servo;
 		
 		// Initialize HX711 weight sensor
 		initHX711();

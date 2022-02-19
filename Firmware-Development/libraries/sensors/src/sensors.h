@@ -4,7 +4,6 @@
 #include "Wire.h"
 #include "SPI.h"
 #include "ESP32PWM.h"
-#include "ESP32Servo.h"
 
 // Constant macros
 #define FAILED 0

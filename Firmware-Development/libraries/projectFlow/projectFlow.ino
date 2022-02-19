@@ -43,6 +43,8 @@ void setup() {
 
   Serial.begin(115200);
 
+  initWiFi();
+
   initBLE();
 
   // Configuring sensor pins
